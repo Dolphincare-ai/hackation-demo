@@ -64,14 +64,28 @@ export default function Portfolio({ onOpen }) {
                   <div className="text-lg font-semibold">{b.name}</div>
                   <span className={"rounded-full px-3 py-1 text-xs font-bold " + s.chip}>{s.label}</span>
                 </div>
-                <div className="mt-3 grid grid-cols-4 gap-2 text-sm text-slate-400">
-                  <div><div className="text-2xl font-bold text-white">{b.open_runs}</div>open</div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-slate-400">
                   <div>
-                    <div className={"text-2xl font-bold " + (b.late_tasks ? "text-red-400" : "text-white")}>{b.late_tasks}</div>
-                    late
+                    <div className="text-xl font-bold text-white">{b.summary.residents.headline}</div>
+                    residents
                   </div>
-                  <div><div className="text-2xl font-bold text-white">{money(b.at_risk)}</div>at risk</div>
-                  <div><div className="text-2xl font-bold text-white">{money(b.held_back)}</div>held back</div>
+                  <div>
+                    <div className={"text-xl font-bold " + (b.at_risk ? "text-red-400" : "text-white")}>{money(b.at_risk)}</div>
+                    money at risk
+                  </div>
+                  <div>
+                    <div className={"text-xl font-bold " + (b.summary.staffing.tone === "warn" ? "text-amber-300" : "text-white")}>
+                      {b.summary.staffing.headline.replace(" open shifts", "").replace(" open shift", "")}
+                    </div>
+                    open shifts
+                  </div>
+                  <div>
+                    <div className={"text-xl font-bold " + (b.summary.todos.late ? "text-red-400" : "text-white")}>
+                      {b.summary.todos.open}
+                      {b.summary.todos.late > 0 && <span className="text-sm"> ({b.summary.todos.late} late)</span>}
+                    </div>
+                    to-dos
+                  </div>
                 </div>
               </div>
             );
