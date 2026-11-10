@@ -82,7 +82,8 @@ events        id, type, source, building_id, payload_json, received_at
 runs          id, type, state, building_id, title, context_json, created_at, updated_at, closed_at
 tasks         id, run_id, kind, title, role, assignee_id, status(open|done|cancelled),
               created_at, due_at, escalation_level(int), last_escalated_at,
-              payload_json, completed_at, completed_by, completion_source(user|system_observed)
+              payload_json, via(email|teams|text|ehr_alert), blocks_json (generic content blocks the UI renders),
+              completed_at, completed_by, completion_source(user|system_observed)
 approvals     id, run_id, task_id, decision(approve|reject), decided_by, decided_at, reason, snapshot_json
 notifications id, run_id, channel(email|teams|text), to, subject, body, thread_ref, sent_at
 audit_log     id, at, actor(system|claude|<user_id>), run_id, action, detail_json
@@ -128,6 +129,20 @@ States: `RECEIVED, EXTRACTED, CHECKED, NEEDS_INFO, PENDING_APPROVAL, FUNDS_CHECK
 | PAID | reply sent | CLOSED | |
 
 Payable amount: sum of lines with decision `approve` (billed amount) or `approve_at_contract` (qty times contract rate). Lines with `exclude` are left out. Excluded failed lines are noted in the packet and the reply as disputed.
+
+## 6a. The bot (orchestrator)
+
+The bot is the product: the background agent that runs the workflow from email to closed. It is a **deterministic orchestrator with Claude in four narrow slots** (section 10). It is not a free-roaming LLM agent. It lives in `core/` (generic loop) and `workflows/` (handlers registered by run type). One tick (every 5 s, or `POST /mock/tick`) does, in order:
+
+1. Poll mailbox, classify each email (Claude), start a run if it is an invoice.
+2. Extract invoice and lines (Claude, schema-validated, retry once, else `MANUAL_ENTRY`).
+3. Run the six checks (plain code) and save findings.
+4. Create one `manual_check` task per unverified finding; when all resolve, build the packet (code) with a summary (Claude) and create the `approval` task.
+5. After approval: compute payable, check funds, create the `payment` task or the `funds_check` task; retry funds on every tick.
+6. Run the SLA scanner: raise `escalation_level` one step at a time and send notifications per the ladders.
+7. Match bank transactions to pending payments; on match close the task (`system_observed`), draft and send the reply on the original thread, close the run.
+
+Rules: the bot never moves money, never decides approval, and writes every action to `audit_log` (actor `system` or `claude`). A tick must be idempotent: running it twice with no new input changes nothing. A new scenario adds a handler to `workflows/registry.py`, never a change to the loop.
 
 ## 7. Tasks, roles and escalation ladders
 
@@ -235,6 +250,12 @@ POST /runs/{id}/approval        {user_id, decision: "approve"|"reject", reason,
 GET  /dashboard                 -> {invoices_by_state, dollars_at_risk, dollars_verified, dollars_paid,
                                       late_tasks, open_tasks_by_role}
 GET  /connectors/health
+GET  /buildings/{id}/overview   -> {kpis{open_workflows, late_steps, waiting_on_you, money_held_back},
+                                      needs_you[], late_and_escalated[], due_24h[], by_workflow_type{}}
+GET  /portfolio                 -> {kpis{open_workflows, late_steps, dollars_at_risk, dollars_paid},
+                                      buildings:[{id, name, status: on_track|watch|act_now, open_runs, late_tasks,
+                                                  at_risk, held_back}],   # sorted worst first
+                                      needs_owner[], live_feed[]}          # live_feed = recent audit_log rows
 
 # demo controls
 POST /mock/email                {template: "harbor_4471" | "harbor_changed_bank" | ...}
@@ -274,17 +295,19 @@ Users seeded: administrator (Riverside), business_office_manager, don, cfo, owne
 
 ## 13. Frontend screens (React, Tailwind, `frontend/`)
 
-1. **Their world** (left panel): fake inbox with a "send invoice email" button per template, and a fake bank screen with "post payment" (prefilled from the payment task) and a balance field. These call the `/mock/*` endpoints. This panel is what shows that staff do not enter anything into the platform.
-2. **My work:** tasks for the selected role, late ones in red, each opening its run. Manual-check tasks have Verified / Not verified / Dispute buttons and a note.
-3. **Invoice detail:** a check grid per line (verified, failed, unverified), the packet with verified items and flagged items clearly separated, an approval form with per-line decisions, funds status, payment status, and a timeline from `timeline[]`.
-4. **Owner dashboard:** invoices by state, dollars at risk, verified, paid, late tasks, and a role switcher at the top (owner, administrator, business office manager, don, cfo) that sets `X-User-Id`.
-5. Demo bar: advance the clock (+3h, +24h, +48h), tick, reset.
+There is no "My work" task list: staff handle tasks in their own tools (inbox, Teams, EHR). The platform shows the work, not a to-do app. Three tabs plus a side panel:
 
-Landing is the role's My work list. No setup screens. Plain-language task titles. Empty states say what to do next.
+1. **Their world** (left panel): fake inbox with a "send invoice email" button per template, fake Teams and EHR feed showing where tasks land (`via`), and a fake bank screen with "post payment" (prefilled from the payment task) and a balance field. These call the `/mock/*` endpoints. Shows that staff do not enter anything into the platform. Includes the demo bar: advance the clock (+3h, +24h, +48h), tick, reset.
+2. **Workflows (shared):** workflow-type tabs (All, Vendor invoice audit, Resident fall, ... with counts), a list of open workflows of that type, and a detail panel: progress strip, steps with owner, due time and channel, per-line check grid (verified, failed, unverified), packet with verified and flagged items clearly separated, approval form with per-line decisions, manual-check buttons (Verified / Not verified / Dispute plus note), funds and payment status, timeline from `timeline[]`. Steps closed by observation are marked. Rendered generically from task `blocks` and run `context`, so a new workflow needs no new screen.
+3. **Overview (administrator, one building):** KPIs, Needs you, Late and escalated, Due in 24 hours, count by workflow type. Data from `GET /buildings/{id}/overview`.
+4. **Portfolio (owner, warboard):** dark wall-style screen from `GET /portfolio`. Big KPI numbers, one tile per building (about 10) sorted worst first with status word (On track / Watch / Act now), a Needs the owner panel, money at risk by building, and a live feed. Seed the nine non-Riverside buildings with a few synthetic runs and tasks so the board looks alive; only Riverside runs the live scenario.
+5. A role switcher at the top (owner, administrator, business office manager, don, cfo) sets `X-User-Id`. Landing is the Portfolio for owner, Overview for administrator, Workflows for everyone else.
+
+No setup screens. Plain-language task titles. Empty states say what to do next.
 
 ## 14. Tests
 
-Table-driven tests for each check. State-machine tests: happy path, manual-check loop, insufficient funds then retry, rejection, approval timeout escalation (use the clock). Payment matcher: exact match, wrong amount, no match. One end-to-end test: template email in, resolve manual check, approve, post bank transaction, assert run `CLOSED` and a reply exists in `mock_world/mailbox/sent`.
+Table-driven tests for each check. State-machine tests: happy path, manual-check loop, insufficient funds then retry, rejection, approval timeout escalation (use the clock). Payment matcher: exact match, wrong amount, no match. Bot tick idempotency test: a second tick with no new input changes no rows. One end-to-end test: template email in, resolve manual check, approve, post bank transaction, assert run `CLOSED` and a reply exists in `mock_world/mailbox/sent`.
 
 ## 15. Working agreements
 
@@ -296,4 +319,4 @@ Table-driven tests for each check. State-machine tests: happy path, manual-check
 
 ## 16. Out of scope for now
 
-Real PDF parsing, real email, real bank or PointClickCare connections, authentication, multi-building rollups beyond the dashboard, the resident fall scenario (stub only), mobile layout, and anything that moves money.
+Real PDF parsing, real email, real bank or PointClickCare connections, authentication, multi-building rollups beyond the Portfolio board (synthetic data for the other buildings), the resident fall scenario (stub only), mobile layout, and anything that moves money.
