@@ -252,6 +252,11 @@ GET  /dashboard                 -> {invoices_by_state, dollars_at_risk, dollars_
 GET  /connectors/health
 GET  /buildings/{id}/overview   -> {kpis{open_workflows, late_steps, waiting_on_you, money_held_back},
                                       needs_you[], late_and_escalated[], due_24h[], by_workflow_type{}}
+GET  /buildings/{id}/board      -> {building{id,name,beds}, as_of,
+                                      quadrants:[{key,title,headline,tone: good|warn|bad|neutral,
+                                                  lines[], source, live: bool}],   # residents, money, staffing
+                                      todos:[{title, owner, bucket: today|week|month, late, source: agent|mock}]}
+                                    # four-quadrant board; live=false means mock connector data
 GET  /portfolio                 -> {kpis{open_workflows, late_steps, dollars_at_risk, dollars_paid},
                                       buildings:[{id, name, status: on_track|watch|act_now, open_runs, late_tasks,
                                                   at_risk, held_back}],   # sorted worst first

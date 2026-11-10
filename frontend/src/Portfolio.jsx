@@ -16,7 +16,7 @@ function Kpi({ label, value, danger }) {
   );
 }
 
-export default function Portfolio() {
+export default function Portfolio({ onOpen }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
 
@@ -45,7 +45,7 @@ export default function Portfolio() {
   const { kpis } = data;
 
   return (
-    <div className="min-h-screen p-6 text-slate-100">
+    <div>
       <h1 className="mb-4 text-2xl font-semibold">Portfolio: {data.buildings.length} buildings</h1>
       <div className="grid grid-cols-4 gap-4">
         <Kpi label="Open workflows" value={kpis.open_workflows} />
@@ -59,7 +59,7 @@ export default function Portfolio() {
           {data.buildings.map((b) => {
             const s = STATUS[b.status];
             return (
-              <div key={b.id} className={"rounded-xl border-2 bg-slate-900 p-4 " + s.ring}>
+              <div key={b.id} onClick={() => onOpen(b.id)} className={"cursor-pointer rounded-xl border-2 bg-slate-900 p-4 hover:bg-slate-800 " + s.ring}>
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-semibold">{b.name}</div>
                   <span className={"rounded-full px-3 py-1 text-xs font-bold " + s.chip}>{s.label}</span>
