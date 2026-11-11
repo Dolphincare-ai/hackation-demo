@@ -38,6 +38,7 @@ class Stub:
 @pytest.fixture(autouse=True)
 def _ai(monkeypatch):
     monkeypatch.setenv("AI_MODE", "live")
+    ai_client.set_client(Stub())  # empty script: any unscripted call raises, never reaches AWS or OpenAI
     yield
     ai_client.set_client(None)
 

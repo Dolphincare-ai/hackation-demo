@@ -9,6 +9,7 @@ Confirm guards (all enforced in `_confirm`, never by the prompt):
 """
 import copy
 import json
+import logging
 from datetime import timedelta
 
 from sqlmodel import Session, select
@@ -21,6 +22,7 @@ from ..workflows.invoice_audit import playbook_schema  # noqa: F401  (registers 
 from . import cache
 from .client import AIError, get_client, mode, model, prompt
 
+log = logging.getLogger("chat")
 RUN_TYPE = "invoice_audit"
 MAX_STEPS = 6
 HISTORY = 12
@@ -276,7 +278,13 @@ def _step(messages: list[dict]) -> dict:
         if hit is None:
             raise AIError("no cached chat answer")
         return json.loads(hit)
-    r = get_client().chat.completions.create(model=model(), messages=messages, tools=TOOLS, temperature=0)
+    try:
+        r = get_client().chat.completions.create(model=model(), messages=messages, tools=TOOLS, temperature=0)
+    except AIError:
+        raise
+    except Exception as e:  # network, auth, rate limit: never a 500 in the chat window
+        log.error("chat model call failed: %s", e)
+        raise AIError(str(e)) from e
     m = r.choices[0].message
     out = {"content": m.content, "tool_calls": [{"id": t.id, "name": t.function.name, "arguments": t.function.arguments}
                                                 for t in (m.tool_calls or [])]}
@@ -325,7 +333,8 @@ def chat(session: Session, user_id: str, message: str, run_id: int | None = None
                 messages.append({"role": "tool", "tool_call_id": t["id"], "content": json.dumps(res, default=str)})
         else:
             reply = "I got stuck on that. Could you rephrase?"
-    except AIError:
+    except AIError as e:
+        log.warning("chat unavailable: %s", e)
         reply = OFFLINE
     audit.log(session, "claude", "ai_call", run_id, {"slot": "chat", "user": user_id})
     session.add(ChatMessage(user_id=user_id, run_id=run_id, role="assistant", content=reply, at=clock.now()))

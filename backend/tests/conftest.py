@@ -13,6 +13,7 @@ def isolated(tmp_path, monkeypatch):
     """Every test gets its own database, mock world and clock."""
     monkeypatch.setenv("PLATFORM_DB", str(tmp_path / "platform.db"))
     monkeypatch.setenv("MOCK_WORLD", str(tmp_path / "mock_world"))
+    monkeypatch.setenv("AI_MODE", "cache")  # tests never call AWS or OpenAI; slots fall back (B's AI tests inject a stub)
     from app.core import clock
     from app.db import reset_db
     from seed import build_mock_world

@@ -51,7 +51,8 @@ def get_client():
                 raise AIError(f"could not read OpenAI key from Secrets Manager: {type(e).__name__}") from e
         if not key:
             raise AIError("OpenAI key not found (env OPENAI_API_KEY or Secrets Manager credentials/llm/openai)")
-        _client = OpenAI(api_key=key)
+        # This key's project has US data residency: it only works on the regional host.
+        _client = OpenAI(api_key=key, base_url=os.environ.get("OPENAI_BASE_URL", "https://us.api.openai.com/v1"))
     return _client
 
 
