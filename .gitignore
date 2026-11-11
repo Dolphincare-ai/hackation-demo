@@ -1,6 +1,9 @@
-.venv/
 node_modules/
-__pycache__/
-data/
-.env
 dist/
+.vite/
+__pycache__/
+*.pyc
+.venv/
+.env
+data/
+.pytest_cache/
