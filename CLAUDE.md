@@ -98,7 +98,8 @@ invoices      id, run_id, vendor_id, invoice_no, invoice_date, due_date, period_
 invoice_lines id, invoice_id, description, item_key(nullable), resident_id(nullable),
               service_from, service_to, qty, unit_price, amount, decision(null|approve|approve_at_contract|exclude)
 findings      id, invoice_id, line_id(nullable), check(price|date|delivery|math|duplicate|bank_details),
-              status(verified|failed|unverified|manually_verified|manually_rejected),
+              status(verified|failed|unverified|skipped|manually_verified|manually_rejected),   # skipped = check switched off in the playbook; never counts as verified
+              
               expected, actual, amount_at_risk, message, evidence_json,
               resolved_by, resolved_at, resolution_note
 payments      id, invoice_id, amount, account_id, expected_ref, matched_txn_id, matched_at,
@@ -151,6 +152,7 @@ Task kinds and default roles:
 | kind | role | due_at |
 |---|---|---|
 | manual_entry | business_office_manager | +8h |
+| extra_step | from playbook `extra_steps` (role, due_h per step) | per step |
 | manual_check | depends on check: delivery -> don, price -> business_office_manager, date -> administrator | +8h |
 | approval | administrator (owner if payable over `approval_owner_threshold`) | +24h |
 | funds_check | cfo | +4h |
@@ -325,3 +327,15 @@ Table-driven tests for each check. State-machine tests: happy path, manual-check
 ## 16. Out of scope for now
 
 Real PDF parsing, real email, real bank or PointClickCare connections, authentication, multi-building rollups beyond the Portfolio board (synthetic data for the other buildings), the resident fall scenario (stub only), mobile layout, and anything that moves money.
+
+
+## 17. Engine notes (Developer A)
+
+- **Playbook schema:** `workflows/invoice_audit/playbook_schema.py` is the whitelist (`extra="forbid"`, limits per value). Anything not declared there cannot be written. Writers call `core.playbook.write_settings(run_type, settings) -> (before, after)`; it validates, then writes, and raises `PlaybookError` without touching the live file.
+- **Finding status `skipped`:** a disabled check writes one invoice-level `skipped` finding. The packet lists it under `skipped` ("not checked by request") and it never counts toward `totals.verified`.
+- **Packet additions:** `skipped[]` and `disputed[]` (lines excluded or paid at contract, with billed and payable) next to the section 11 keys.
+- **extra_steps** are generic `extra_step` tasks created next to the manual checks. The run stays in `NEEDS_INFO` until every manual check and extra step is done, then the approval task is created.
+- **AI slots:** `workflows/invoice_audit/slots.py` is the only place the flow calls the AI layer. It tries B's `classify.classify_email`, `extract.extract_invoice` and `app.ai.summarize_packet / draft_reply / draft_dispute`, and falls back to a regex reader and text templates, so tests and the demo work offline. Each call writes an `ai_call` audit row with `via: ai|fallback`.
+- **Payment matching:** a bank transaction matches when it is on the payment's account, its reference contains `INV-<invoice_no>` (or the payee is the vendor) and `abs(amount)` equals the payable. A different amount marks the payment `mismatch` (reported once) and leaves the run in `AWAITING_PAYMENT`.
+- **Demo endpoints** run a tick immediately. `POST /mock/reset` rebuilds runs, tasks, the mock world and the clock, and leaves `data/playbooks/` alone.
+- Env: `DISABLE_SCHEDULER=1` turns off the 5 s loop (tests).

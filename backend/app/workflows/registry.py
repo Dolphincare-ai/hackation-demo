@@ -34,3 +34,12 @@ def get(run_type: str) -> Handler | None:
 
 def all_handlers() -> list[Handler]:
     return list(_handlers.values())
+
+
+def _register_builtin() -> None:
+    from .invoice_audit.flow import handler as invoice_audit
+
+    register(invoice_audit)
+
+
+_register_builtin()
