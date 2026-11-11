@@ -2,7 +2,8 @@
 
 Rules (CLAUDE.md section 10): validate against a schema, retry once, then raise AIError so the
 caller can fall back. AI_MODE=cache serves from data/ai_cache only (AICacheMiss when absent).
-The key comes from OPENAI_API_KEY in the environment, never from code.
+The key comes from AWS Secrets Manager (credentials/llm/openai, key api_key, dc-test profile, see
+secrets.py); OPENAI_API_KEY in the environment overrides it. Never from code.
 """
 import json
 import os
@@ -41,9 +42,16 @@ def get_client():
     global _client
     if _client is None:
         from openai import OpenAI
-        if not os.environ.get("OPENAI_API_KEY"):
-            raise AIError("OPENAI_API_KEY is not set")
-        _client = OpenAI()
+        key = os.environ.get("OPENAI_API_KEY")  # explicit override wins
+        if not key:
+            try:
+                from .secrets import openai_api_key
+                key = openai_api_key()
+            except Exception as e:  # no boto3, no credentials, no access
+                raise AIError(f"could not read OpenAI key from Secrets Manager: {type(e).__name__}") from e
+        if not key:
+            raise AIError("OpenAI key not found (env OPENAI_API_KEY or Secrets Manager credentials/llm/openai)")
+        _client = OpenAI(api_key=key)
     return _client
 
 

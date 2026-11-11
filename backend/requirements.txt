@@ -4,6 +4,9 @@ sqlmodel
 pydantic
 pytest
 openai
+boto3
 pyyaml
 python-dotenv
 httpx
+reportlab
+pypdf
