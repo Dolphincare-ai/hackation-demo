@@ -10,7 +10,7 @@ const TONE = {
 };
 const CHECKS = ["price", "date", "delivery", "math", "duplicate", "bank_details"];
 
-async function api(path, opts = {}, userId) {
+export async function api(path, opts = {}, userId) {
   const r = await fetch(`/api${path}`, { ...opts, headers: { "Content-Type": "application/json", "X-User-Id": userId, ...(opts.headers || {}) } });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.detail || `Request failed (${r.status})`);
@@ -152,7 +152,7 @@ const Section = ({ title, children }) => (
   <section><h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</h3><div className="space-y-2">{children}</div></section>
 );
 
-function ManualCheck({ onResolve }) {
+export function ManualCheck({ onResolve }) {
   const [note, setNote] = useState("");
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -164,7 +164,7 @@ function ManualCheck({ onResolve }) {
   );
 }
 
-function Packet({ packet }) {
+export function Packet({ packet }) {
   const list = (items, render) => items?.length ? <ul className="space-y-1">{items.map(render)}</ul> : <p className="text-xs text-slate-500">None</p>;
   return (
     <Section title="Approval packet">
@@ -186,7 +186,7 @@ function Packet({ packet }) {
   );
 }
 
-function ApprovalForm({ invoice, findings, onSubmit }) {
+export function ApprovalForm({ invoice, findings, onSubmit }) {
   const bad = (id) => findings.some((f) => f.line_id === id && ["failed", "manually_rejected"].includes(f.status));
   const [dec, setDec] = useState(() => Object.fromEntries(invoice.lines.map((l) => [l.id, bad(l.id) ? "exclude" : "approve"])));
   const [reason, setReason] = useState("");

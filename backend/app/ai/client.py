@@ -52,8 +52,21 @@ def get_client():
         if not key:
             raise AIError("OpenAI key not found (env OPENAI_API_KEY or Secrets Manager credentials/llm/openai)")
         # This key's project has US data residency: it only works on the regional host.
-        _client = OpenAI(api_key=key, base_url=os.environ.get("OPENAI_BASE_URL", "https://us.api.openai.com/v1"))
+        _client = OpenAI(api_key=key, base_url=os.environ.get("OPENAI_BASE_URL", "https://us.api.openai.com/v1"),
+                         http_client=_http_client())
     return _client
+
+
+def _http_client():
+    """httpx client whose TLS context still verifies certificates but drops Python 3.13+'s strict
+    X.509 flag. Needed behind TLS-inspecting proxies whose CA lacks the key usage extension.
+    SSL_CERT_FILE is honoured if set."""
+    import ssl
+    import httpx
+    ctx = ssl.create_default_context(cafile=os.environ.get("SSL_CERT_FILE"))
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return httpx.Client(verify=ctx, timeout=60.0)
 
 
 def prompt(name: str) -> str:
