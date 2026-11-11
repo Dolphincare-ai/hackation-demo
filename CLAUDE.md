@@ -33,10 +33,10 @@ Hackathon constraints: the whole thing is built in about 3 hours by two people, 
 
 ## 3. Stack and commands
 
-- Backend: Python 3.11+, FastAPI, SQLModel (SQLite), Pydantic, pytest, `anthropic` SDK.
+- Backend: Python 3.11+, FastAPI, SQLModel (SQLite), Pydantic, pytest, `openai` SDK (Chat Completions with tool calling). The AI layer was moved from `anthropic` to OpenAI.
 - Frontend: React (Vite) and Tailwind. Plain fetch, no state library.
 - Scheduler: one asyncio background loop started in FastAPI lifespan, ticking every 5 seconds. `POST /mock/tick` runs the same tick on demand.
-- Config: `.env` holds `ANTHROPIC_API_KEY`, `MODEL`, `AI_MODE` (`live` or `cache`).
+- Config: `.env` (gitignored, see `.env.example`) holds `OPENAI_API_KEY` (AWS Secrets Manager `credentials/llm/openai`, key `api_key`), `MODEL` (default `gpt-4o`), `AI_MODE` (`live` or `cache`).
 
 ```
 make setup     # create venv, install backend and frontend deps
@@ -234,6 +234,14 @@ Four functions, each with a Pydantic input and output, one prompt file, and a ca
 4. `draft_reply(payment, invoice, thread) -> str` and `draft_dispute(findings) -> str`.
 
 Rules: validate every response against its schema, retry once, then fall back (a manual task for extraction, a plain template for text). `AI_MODE=cache` serves from the cache only so the demo works offline. Never put API keys in code. Prompts must say: use only the facts provided, never invent amounts, names or dates.
+
+Files: `ai/client.py` (`call_json`, `call_text`, raises `AIError` / `AICacheMiss`; tests inject a stub with `set_client`), `ai/cache.py`, `ai/prompts/*.md`, `workflows/invoice_audit/classify.py` and `extract.py`.
+
+**5. Chat slot (`ai/chat.py`, `api/routes_agent.py`).** The chat agent can read and propose, never act on money or tasks. Tools: read (`list_runs`, `get_run`, `list_tasks`, `get_settings`, `explain_finding`), `check_inbox_now`, propose (`propose_change`, `propose_extra_step`, `propose_note`, `propose_revert`, `propose_restore_defaults`), and `confirm_proposal` / `cancel_proposal`. There is no transfer, approve or resolve tool. A proposal is stored in `agent_proposals` as `pending`. `confirm_proposal` is refused by the server unless: (1) the proposal is pending, (2) it belongs to this user's chat, (3) the user wrote a message after the proposal, (4) the user's role may confirm the keys at that scope (`core/permissions.require_change`). "Only this time" writes `runs.context_json["overrides"]`. "Always" calls `playbook.write_settings` (or `append_note` / `write_text`), writes a `playbook_changed` audit row with before and after text, and recomputes `due_at` of affected open tasks. Every proposal, apply, cancel and chat call is audited. In `AI_MODE=cache` chat steps replay from `data/ai_cache/`.
+
+Tables added: `agent_proposals` (id, user_id, chat_msg_id, kind change|note|revert|restore, run_type, run_id, vendor_id, changes_json, payload_json, rationale, status pending|applied|cancelled, scope once|always, proposed_at, decided_by, decided_at) and `chat_messages` (id, user_id, run_id, role user|assistant, content, at).
+
+Routes: `POST /agent/chat {user_id, message, run_id?} -> {reply, proposals[]}` and `GET /agent/chat/history?user_id=&limit=`.
 
 ## 11. API contract
 

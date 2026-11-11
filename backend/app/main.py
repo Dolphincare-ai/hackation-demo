@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlmodel import SQLModel
 
 from .api.deps import run_tick
+from .api.routes_agent import router as agent_router
 from .api.routes_board import router as board_router
 from .api.routes_dashboard import router as dashboard_router
 from .api.routes_portfolio import router as portfolio_router
@@ -51,6 +52,7 @@ app.include_router(board_router)
 app.include_router(runs_router)
 app.include_router(tasks_router)
 app.include_router(dashboard_router)
+app.include_router(agent_router)  # B: /agent/chat, /agent/chat/history
 
 
 @app.exception_handler(Forbidden)
