@@ -1,0 +1,781 @@
+{
+ "riverside": {
+  "building": {
+   "id": "riverside",
+   "name": "Riverside Care",
+   "beds": 48
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "46 / 48",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 1 admits, 0 discharge today",
+     "2 hospital transfer \u00b7 1 open falls",
+     "1 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "Act now",
+    "tone": "bad",
+    "lines": [
+     "4 invoice audits open \u00b7 3 steps late",
+     "$4,010 at risk on flagged invoice lines",
+     "$3,410 held back pending approval or funds",
+     "Medicare A days 11 \u00b7 Medicaid pending 4"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "2 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 2 CNA call-off, 1 nurse vacancy",
+     "2 resignation in progress",
+     "Agency hours this week 35"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Check enoxaparin delivery, invoice #4471",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "agent"
+   },
+   {
+    "title": "Approve Harbor Pharmacy invoice #4471",
+    "owner": "administrator",
+    "bucket": "today",
+    "late": false,
+    "source": "agent"
+   },
+   {
+    "title": "Care plan update, Rm 21",
+    "owner": "don",
+    "bucket": "today",
+    "late": true,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Family notice, Rm 21",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Renew pharmacy contract",
+    "owner": "business_office_manager",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "oakmont": {
+  "building": {
+   "id": "oakmont",
+   "name": "Oakmont Manor",
+   "beds": 72
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "68 / 72",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 1 admits, 2 discharge today",
+     "1 hospital transfer \u00b7 1 open falls",
+     "5 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "Act now",
+    "tone": "bad",
+    "lines": [
+     "5 invoice audits open \u00b7 5 steps late",
+     "$18,200 at risk on flagged invoice lines",
+     "$6,200 held back pending approval or funds",
+     "Medicare A days 11 \u00b7 Medicaid pending 3"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "1 open shifts",
+    "tone": "neutral",
+    "lines": [
+     "Tonight: 1 CNA call-off, 1 nurse vacancy",
+     "0 resignation in progress",
+     "Agency hours this week 38"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 39",
+    "owner": "don",
+    "bucket": "today",
+    "late": true,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "willow": {
+  "building": {
+   "id": "willow",
+   "name": "Willow Creek",
+   "beds": 60
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "57 / 60",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 2 admits, 2 discharge today",
+     "0 hospital transfer \u00b7 3 open falls",
+     "3 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "Watch",
+    "tone": "warn",
+    "lines": [
+     "3 invoice audits open \u00b7 2 steps late",
+     "$5,400 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 9 \u00b7 Medicaid pending 1"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "0 open shifts",
+    "tone": "neutral",
+    "lines": [
+     "Tonight: 1 CNA call-off, 1 nurse vacancy",
+     "0 resignation in progress",
+     "Agency hours this week 48"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 30",
+    "owner": "don",
+    "bucket": "today",
+    "late": true,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "maple": {
+  "building": {
+   "id": "maple",
+   "name": "Maple Grove",
+   "beds": 60
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "55 / 60",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 3 admits, 2 discharge today",
+     "0 hospital transfer \u00b7 1 open falls",
+     "3 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "Watch",
+    "tone": "warn",
+    "lines": [
+     "3 invoice audits open \u00b7 1 steps late",
+     "$2,150 at risk on flagged invoice lines",
+     "$1,200 held back pending approval or funds",
+     "Medicare A days 11 \u00b7 Medicaid pending 5"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "3 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 2 CNA call-off, 0 nurse vacancy",
+     "0 resignation in progress",
+     "Agency hours this week 47"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 7",
+    "owner": "don",
+    "bucket": "today",
+    "late": true,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Family notice, Rm 7",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Renew pharmacy contract",
+    "owner": "business_office_manager",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "pine": {
+  "building": {
+   "id": "pine",
+   "name": "Pine Hollow",
+   "beds": 72
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "70 / 72",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 1 admits, 0 discharge today",
+     "1 hospital transfer \u00b7 1 open falls",
+     "4 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "Watch",
+    "tone": "warn",
+    "lines": [
+     "2 invoice audits open \u00b7 1 steps late",
+     "$1,800 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 10 \u00b7 Medicaid pending 6"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "3 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 0 CNA call-off, 0 nurse vacancy",
+     "2 resignation in progress",
+     "Agency hours this week 54"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 15",
+    "owner": "don",
+    "bucket": "today",
+    "late": true,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "cedar": {
+  "building": {
+   "id": "cedar",
+   "name": "Cedar Ridge",
+   "beds": 54
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "53 / 54",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 3 admits, 2 discharge today",
+     "2 hospital transfer \u00b7 2 open falls",
+     "0 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "On track",
+    "tone": "good",
+    "lines": [
+     "2 invoice audits open \u00b7 0 steps late",
+     "$0 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 10 \u00b7 Medicaid pending 5"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "2 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 0 CNA call-off, 0 nurse vacancy",
+     "2 resignation in progress",
+     "Agency hours this week 47"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 1",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "lakeview": {
+  "building": {
+   "id": "lakeview",
+   "name": "Lakeview Health",
+   "beds": 48
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "44 / 48",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 0 admits, 2 discharge today",
+     "1 hospital transfer \u00b7 2 open falls",
+     "0 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "On track",
+    "tone": "good",
+    "lines": [
+     "3 invoice audits open \u00b7 0 steps late",
+     "$950 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 16 \u00b7 Medicaid pending 2"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "3 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 2 CNA call-off, 0 nurse vacancy",
+     "1 resignation in progress",
+     "Agency hours this week 11"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 36",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "sunrise": {
+  "building": {
+   "id": "sunrise",
+   "name": "Sunrise Terrace",
+   "beds": 48
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "45 / 48",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 2 admits, 2 discharge today",
+     "1 hospital transfer \u00b7 0 open falls",
+     "5 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "On track",
+    "tone": "good",
+    "lines": [
+     "2 invoice audits open \u00b7 0 steps late",
+     "$0 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 13 \u00b7 Medicaid pending 5"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "3 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 2 CNA call-off, 1 nurse vacancy",
+     "0 resignation in progress",
+     "Agency hours this week 52"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 19",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "harbor": {
+  "building": {
+   "id": "harbor",
+   "name": "Harbor Point",
+   "beds": 54
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "50 / 54",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 1 admits, 1 discharge today",
+     "1 hospital transfer \u00b7 1 open falls",
+     "2 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "On track",
+    "tone": "good",
+    "lines": [
+     "3 invoice audits open \u00b7 0 steps late",
+     "$0 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 13 \u00b7 Medicaid pending 6"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "1 open shifts",
+    "tone": "neutral",
+    "lines": [
+     "Tonight: 0 CNA call-off, 0 nurse vacancy",
+     "0 resignation in progress",
+     "Agency hours this week 50"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 24",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ },
+ "birch": {
+  "building": {
+   "id": "birch",
+   "name": "Birch Meadows",
+   "beds": 60
+  },
+  "as_of": "10:42",
+  "quadrants": [
+   {
+    "key": "residents",
+    "title": "Residents & clinical",
+    "headline": "59 / 60",
+    "tone": "neutral",
+    "lines": [
+     "Census \u00b7 2 admits, 2 discharge today",
+     "2 hospital transfer \u00b7 3 open falls",
+     "1 changes in condition this week"
+    ],
+    "source": "Mock PointClickCare (ADT, incidents)",
+    "live": false
+   },
+   {
+    "key": "money",
+    "title": "Money today",
+    "headline": "On track",
+    "tone": "good",
+    "lines": [
+     "2 invoice audits open \u00b7 0 steps late",
+     "$0 at risk on flagged invoice lines",
+     "$0 held back pending approval or funds",
+     "Medicare A days 8 \u00b7 Medicaid pending 6"
+    ],
+    "source": "Invoice agent (live) + mock billing",
+    "live": true
+   },
+   {
+    "key": "staffing",
+    "title": "Staffing",
+    "headline": "3 open shifts",
+    "tone": "warn",
+    "lines": [
+     "Tonight: 2 CNA call-off, 0 nurse vacancy",
+     "2 resignation in progress",
+     "Agency hours this week 46"
+    ],
+    "source": "Mock Workday (scheduling, HRIS)",
+    "live": false
+   }
+  ],
+  "todos": [
+   {
+    "title": "Care plan update, Rm 27",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Post night-shift opening",
+    "owner": "administrator",
+    "bucket": "week",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Review month-end census report",
+    "owner": "administrator",
+    "bucket": "month",
+    "late": false,
+    "source": "mock"
+   },
+   {
+    "title": "Family notice, Rm 27",
+    "owner": "don",
+    "bucket": "today",
+    "late": false,
+    "source": "mock"
+   }
+  ]
+ }
+}

@@ -2,7 +2,7 @@
 import json
 from datetime import datetime, timedelta
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from ..config import get_config
 from ..models import Task
@@ -61,27 +61,5 @@ def complete_task(session: Session, task_id: int, by: str, source: str = "user",
     return task
 
 
-def cancel_task(session: Session, task_id: int, actor: str = "system", reason: str | None = None) -> Task:
-    task = session.get(Task, task_id)
-    if task is None:
-        raise LookupError(f"Task {task_id} not found")
-    if task.status == "open":
-        task.status = "cancelled"
-        session.add(task)
-        audit.log(session, actor, "task_cancelled", task.run_id, {"task_id": task_id, "kind": task.kind, "reason": reason})
-    return task
-
-
 def is_late(task: Task) -> bool:
     return task.status == "open" and task.due_at < clock.now()
-
-
-def open_tasks(session: Session, run_id: int | None = None, role: str | None = None, kind: str | None = None) -> list[Task]:
-    q = select(Task).where(Task.status == "open")
-    if run_id is not None:
-        q = q.where(Task.run_id == run_id)
-    if role is not None:
-        q = q.where(Task.role == role)
-    if kind is not None:
-        q = q.where(Task.kind == kind)
-    return list(session.exec(q.order_by(Task.due_at)))

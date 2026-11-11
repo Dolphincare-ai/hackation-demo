@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from .routes_board import _board
+from .routes_board import load_boards
 
 router = APIRouter()
 
@@ -15,10 +15,10 @@ FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "portfoli
 @router.get("/portfolio")
 def portfolio():
     data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    boards = load_boards()
     for b in data["buildings"]:
-        board = _board(b)
+        board = boards[b["id"]]
         q = {x["key"]: x for x in board["quadrants"]}
-        # One-line roll-up of each quadrant, same source as the building board.
         b["summary"] = {
             "residents": {"headline": q["residents"]["headline"], "tone": q["residents"]["tone"]},
             "staffing": {"headline": q["staffing"]["headline"], "tone": q["staffing"]["tone"]},
