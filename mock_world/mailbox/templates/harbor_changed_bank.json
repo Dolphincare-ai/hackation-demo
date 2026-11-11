@@ -1,0 +1,15 @@
+{
+  "id": "harbor_changed_bank",
+  "from": "billing@harborpharmacy.example",
+  "to": "ap@riverside.example",
+  "subject": "Harbor Pharmacy invoice #4480 (updated bank details)",
+  "received_at": "2026-11-02T09:00:00",
+  "body": "Hello,\n\nPlease find attached our October invoice #4480.\n\nHarbor Pharmacy Billing",
+  "thread_ref": "thread-harbor-4480",
+  "attachments": [
+    {
+      "filename": "invoice_4480.txt",
+      "text": "HARBOR PHARMACY\nInvoice #4480\nBill to: Riverside Care\nInvoice date: 2026-11-02\nDue date: 2026-12-02\nService period: 2026-10-01 to 2026-10-31\n\n  Metformin 500 mg                                 qty  900 x $ 0.09 = $   81.00\n  Lisinopril 10 mg                                 qty  700 x $ 0.11 = $   77.00\n  Atorvastatin 40 mg                               qty  600 x $ 0.84 = $  504.00\n  Apixaban 5 mg - Jose Alvarez, 10/22 to 10/31     qty   60 x $ 6.80 = $  408.00\n  Enoxaparin 40 mg                                 qty  120 x $24.50 = $2,940.00\n\nTotal due: $4,010.00\n\nRemit to: First Harbor Bank, account ending 7733, routing ending 0912\n"
+    }
+  ]
+}

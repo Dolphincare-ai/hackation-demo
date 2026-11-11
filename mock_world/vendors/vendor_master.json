@@ -1,0 +1,13 @@
+[
+  {
+    "vendor_id": "harbor",
+    "name": "Harbor Pharmacy",
+    "email_domain": "harborpharmacy.example",
+    "remit_to": {
+      "bank": "First Harbor Bank",
+      "account_last4": "4821",
+      "routing_last4": "0912"
+    },
+    "payment_terms_days": 30
+  }
+]

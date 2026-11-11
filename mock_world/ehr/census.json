@@ -1,0 +1,34 @@
+[
+  {
+    "resident_id": "res_001",
+    "name": "Jose Alvarez",
+    "building_id": "riverside",
+    "room": "12",
+    "admit_date": "2026-08-14",
+    "discharge_date": "2026-10-21"
+  },
+  {
+    "resident_id": "res_002",
+    "name": "Margaret Chen",
+    "building_id": "riverside",
+    "room": "14",
+    "admit_date": "2026-03-02",
+    "discharge_date": null
+  },
+  {
+    "resident_id": "res_003",
+    "name": "Walter Brooks",
+    "building_id": "riverside",
+    "room": "21",
+    "admit_date": "2026-06-19",
+    "discharge_date": null
+  },
+  {
+    "resident_id": "res_004",
+    "name": "Ruth Okafor",
+    "building_id": "riverside",
+    "room": "9",
+    "admit_date": "2026-09-30",
+    "discharge_date": null
+  }
+]

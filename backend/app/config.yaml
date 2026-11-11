@@ -1,0 +1,27 @@
+# Config over code: roles, ladders, thresholds, reserves. See CLAUDE.md section 7.
+roles: [owner, administrator, business_office_manager, don, cfo]
+
+# Default role and due time (hours after creation) per task kind.
+# `payment` has no due_h: its due date is the invoice due_date minus payment_due_days_before.
+task_defaults:
+  manual_entry: {role: business_office_manager, due_h: 8}
+  manual_check: {role: business_office_manager, due_h: 8}
+  approval:     {role: administrator, due_h: 24}
+  funds_check:  {role: cfo, due_h: 4}
+  payment:      {role: business_office_manager}
+
+# manual_check role depends on which check could not verify.
+manual_check_roles: {delivery: don, price: business_office_manager, date: administrator}
+
+payment_due_days_before: 2
+
+# Hours are measured since task creation (for `payment`, since due_at).
+ladders:
+  manual_check: [{after_h: 8,  action: remind, to: [assignee_role]}, {after_h: 24, action: alert, to: [administrator]}]
+  approval:     [{after_h: 24, action: remind, to: [assignee_role]}, {after_h: 48, action: alert, to: [owner, backup_approver]}]
+  funds_check:  [{after_h: 4,  action: alert,  to: [cfo, business_office_manager]}]
+  payment:      [{after_h: 0,  action: alert,  to: [business_office_manager, administrator]}]
+
+approval_owner_threshold: 10000
+reserve_min: 5000
+backup_approver_role: owner

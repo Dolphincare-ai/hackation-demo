@@ -1,0 +1,18 @@
+[
+  {
+    "txn_id": "t_0001",
+    "account_id": "acct_riverside_op",
+    "date": "2026-10-28",
+    "payee": "Medline Supply",
+    "amount": -1840.0,
+    "reference": "MED-9921"
+  },
+  {
+    "txn_id": "t_0002",
+    "account_id": "acct_riverside_op",
+    "date": "2026-11-03",
+    "payee": "Medicare remittance",
+    "amount": 21500.0,
+    "reference": "CMS-1103"
+  }
+]
