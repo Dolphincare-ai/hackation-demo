@@ -3,7 +3,7 @@ uvicorn[standard]
 sqlmodel
 pydantic
 pytest
-anthropic
+openai
 pyyaml
 python-dotenv
 httpx

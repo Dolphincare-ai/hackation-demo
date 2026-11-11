@@ -87,6 +87,42 @@ class User(SQLModel, table=True):
     building_id: str
 
 
+class KV(SQLModel, table=True):
+    """Small key/value store for bot bookkeeping (e.g. last inbox poll)."""
+    key: str = Field(primary_key=True)
+    value: str
+
+
+# ---- agent chat (generic, reused by every scenario) ----
+class AgentProposal(SQLModel, table=True):
+    __tablename__ = "agent_proposals"
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str  # whose chat proposed it; only this user's later message can confirm it
+    chat_msg_id: int  # the user message in the turn that created it
+    kind: str  # change | note | revert | restore
+    run_type: str
+    run_id: int | None = None  # the run "only this time" would apply to
+    vendor_id: str | None = None  # the vendor "always" would apply to (None = all)
+    changes_json: str = "[]"  # [{key, from, to}]
+    payload_json: str = "{}"  # note text, or full playbook text for revert/restore
+    rationale: str = ""
+    status: str = "pending"  # pending | applied | cancelled
+    scope: str | None = None  # once | always, set on confirm
+    proposed_at: NaiveDatetime
+    decided_by: str | None = None
+    decided_at: NaiveDatetime | None = None
+
+
+class ChatMessage(SQLModel, table=True):
+    __tablename__ = "chat_messages"
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True)
+    run_id: int | None = None
+    role: str  # user | assistant
+    content: str
+    at: NaiveDatetime
+
+
 # ---- invoice tables ----
 class Invoice(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)

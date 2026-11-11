@@ -12,10 +12,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen p-6 text-slate-100">
-      <div className="mb-5 flex items-center gap-3">
-        <span className="text-sm uppercase tracking-widest text-slate-500">View</span>
+      <div className="mb-6 flex items-center gap-3 border-b border-slate-800 pb-4">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">View</span>
         <select value={view} onChange={(e) => setView(e.target.value)}
-          className="rounded bg-slate-800 px-3 py-2 text-slate-100">
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none">
           <option value="all">All buildings</option>
           {buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
