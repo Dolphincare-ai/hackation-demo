@@ -33,10 +33,11 @@ Hackathon constraints: the whole thing is built in about 3 hours by two people, 
 
 ## 3. Stack and commands
 
-- Backend: Python 3.11+, FastAPI, SQLModel (SQLite), Pydantic, pytest, `anthropic` SDK.
+- Backend: Python 3.11+, FastAPI, SQLModel (SQLite), Pydantic, pytest, `openai` SDK (Chat Completions with tool calling). The AI layer was moved from `anthropic` to OpenAI.
 - Frontend: React (Vite) and Tailwind. Plain fetch, no state library.
 - Scheduler: one asyncio background loop started in FastAPI lifespan, ticking every 5 seconds. `POST /mock/tick` runs the same tick on demand.
-- Config: `.env` holds `ANTHROPIC_API_KEY`, `MODEL`, `AI_MODE` (`live` or `cache`).
+- Config: `.env` (gitignored, see `.env.example`) holds `OPENAI_API_KEY` (AWS Secrets Manager `credentials/llm/openai`, key `api_key`), `MODEL` (default `gpt-4o`), `AI_MODE` (`live` or `cache`).
+- Mailbox env: `MAILBOX_MODE=mock|imap` (default `mock`). For `imap`: `IMAP_HOST` (e.g. `imap.gmail.com`), `IMAP_USER`, `IMAP_PASSWORD` (a Gmail app password, needs 2-step verification), `IMAP_BUILDING` (building the mailbox belongs to, e.g. `riverside`), optional `IMAP_PORT`, `IMAP_MARK_READ` (default `1`), `IMAP_MAX_AGE_DAYS` (default `30`). `REPLY_MODE=mock|smtp` (default `mock`; `smtp` also uses `SMTP_HOST`, `SMTP_PORT`, defaulting to the IMAP host with `imap` replaced by `smtp`, port 465). `RUN_LIVE_AI=1` enables the live-model phrase tests.
 
 ```
 make setup     # create venv, install backend and frontend deps
@@ -82,7 +83,8 @@ events        id, type, source, building_id, payload_json, received_at
 runs          id, type, state, building_id, title, context_json, created_at, updated_at, closed_at
 tasks         id, run_id, kind, title, role, assignee_id, status(open|done|cancelled),
               created_at, due_at, escalation_level(int), last_escalated_at,
-              payload_json, completed_at, completed_by, completion_source(user|system_observed)
+              payload_json, via(email|teams|text|ehr_alert), blocks_json (generic content blocks the UI renders),
+              completed_at, completed_by, completion_source(user|system_observed)
 approvals     id, run_id, task_id, decision(approve|reject), decided_by, decided_at, reason, snapshot_json
 notifications id, run_id, channel(email|teams|text), to, subject, body, thread_ref, sent_at
 audit_log     id, at, actor(system|claude|<user_id>), run_id, action, detail_json
@@ -97,7 +99,8 @@ invoices      id, run_id, vendor_id, invoice_no, invoice_date, due_date, period_
 invoice_lines id, invoice_id, description, item_key(nullable), resident_id(nullable),
               service_from, service_to, qty, unit_price, amount, decision(null|approve|approve_at_contract|exclude)
 findings      id, invoice_id, line_id(nullable), check(price|date|delivery|math|duplicate|bank_details),
-              status(verified|failed|unverified|manually_verified|manually_rejected),
+              status(verified|failed|unverified|skipped|manually_verified|manually_rejected),   # skipped = check switched off in the playbook; never counts as verified
+              
               expected, actual, amount_at_risk, message, evidence_json,
               resolved_by, resolved_at, resolution_note
 payments      id, invoice_id, amount, account_id, expected_ref, matched_txn_id, matched_at,
@@ -129,6 +132,20 @@ States: `RECEIVED, EXTRACTED, CHECKED, NEEDS_INFO, PENDING_APPROVAL, FUNDS_CHECK
 
 Payable amount: sum of lines with decision `approve` (billed amount) or `approve_at_contract` (qty times contract rate). Lines with `exclude` are left out. Excluded failed lines are noted in the packet and the reply as disputed.
 
+## 6a. The bot (orchestrator)
+
+The bot is the product: the background agent that runs the workflow from email to closed. It is a **deterministic orchestrator with Claude in four narrow slots** (section 10). It is not a free-roaming LLM agent. It lives in `core/` (generic loop) and `workflows/` (handlers registered by run type). One tick (every 5 s, or `POST /mock/tick`) does, in order:
+
+1. Poll mailbox, classify each email (Claude), start a run if it is an invoice.
+2. Extract invoice and lines (Claude, schema-validated, retry once, else `MANUAL_ENTRY`).
+3. Run the six checks (plain code) and save findings.
+4. Create one `manual_check` task per unverified finding; when all resolve, build the packet (code) with a summary (Claude) and create the `approval` task.
+5. After approval: compute payable, check funds, create the `payment` task or the `funds_check` task; retry funds on every tick.
+6. Run the SLA scanner: raise `escalation_level` one step at a time and send notifications per the ladders.
+7. Match bank transactions to pending payments; on match close the task (`system_observed`), draft and send the reply on the original thread, close the run.
+
+Rules: the bot never moves money, never decides approval, and writes every action to `audit_log` (actor `system` or `claude`). A tick must be idempotent: running it twice with no new input changes nothing. A new scenario adds a handler to `workflows/registry.py`, never a change to the loop.
+
 ## 7. Tasks, roles and escalation ladders
 
 Task kinds and default roles:
@@ -136,6 +153,7 @@ Task kinds and default roles:
 | kind | role | due_at |
 |---|---|---|
 | manual_entry | business_office_manager | +8h |
+| extra_step | from playbook `extra_steps` (role, due_h per step) | per step |
 | manual_check | depends on check: delivery -> don, price -> business_office_manager, date -> administrator | +8h |
 | approval | administrator (owner if payable over `approval_owner_threshold`) | +24h |
 | funds_check | cfo | +4h |
@@ -186,6 +204,8 @@ class BankConnector(Protocol):
 
 `get_connectors()` returns the mock implementations. `GET /connectors/health` reports each connector's mode (`mock`) and last read time. This is what makes the "real systems plug in here" story honest.
 
+**IMAP mailbox** (`connectors/mailbox_imap.py`, `MAILBOX_MODE=imap`): a dedicated test mailbox, never a work address, because the bot reads every unread message in it. `poll()` runs `SEARCH UNSEEN SINCE <today minus IMAP_MAX_AGE_DAYS>` (default 30 days, so older unread mail is never touched), fetches with `BODY.PEEK[]`, and never changes a flag. Mail the bot ignores stays unread (and is skipped on later polls after a header-only fetch). Only mail that classified as an invoice and started a run is marked read, by the bot calling `mailbox.mark_read(email)` (`STORE +FLAGS \Seen` on that one mail; `IMAP_MARK_READ=0` turns it off). Nothing is deleted or moved. It dedupes by Message-ID in `data/imap_seen.db` (SQLite, separate from `platform.db` so it never contends with the bot's transaction), so a second tick returns nothing. `POST /mock/reset` clears it. PDF attachments become `attachments[].text` via pypdf; if every attachment has no text (a scan) the run goes to `MANUAL_ENTRY` without calling the AI. `thread_ref` is the first `References` id, else the `Message-ID`. The `to` address is `IMAP_USER`, mapped to a building by `IMAP_BUILDING`. Replies go to `mock_world/mailbox/sent` unless `REPLY_MODE=smtp`, which also sends over SMTP with `In-Reply-To` and `References` set. A connect or login failure raises `ConnectorError`; the bot writes one `inbox_error` audit row per distinct error and carries on. `GET /connectors/health` shows `mode: imap`, the reply mode and the mailbox. `POST /mock/inbox/check` forces a poll (the demo bar's "Check inbox"; TODO(B): add the button). `scripts/make_invoice.py [--variant changed_bank]` builds the test PDFs in `out/`.
+
 ### Mock world file formats
 
 ```
@@ -218,6 +238,14 @@ Four functions, each with a Pydantic input and output, one prompt file, and a ca
 
 Rules: validate every response against its schema, retry once, then fall back (a manual task for extraction, a plain template for text). `AI_MODE=cache` serves from the cache only so the demo works offline. Never put API keys in code. Prompts must say: use only the facts provided, never invent amounts, names or dates.
 
+Files: `ai/client.py` (`call_json`, `call_text`, raises `AIError` / `AICacheMiss`; tests inject a stub with `set_client`), `ai/cache.py`, `ai/prompts/*.md`, `workflows/invoice_audit/classify.py` and `extract.py`.
+
+**5. Chat slot (`ai/chat.py`, `api/routes_agent.py`).** The chat agent can read and propose, never act on money or tasks. Tools: read (`list_runs`, `get_run`, `list_tasks`, `get_settings`, `explain_finding`), `check_inbox_now`, propose (`propose_change`, `propose_extra_step`, `propose_note`, `propose_revert`, `propose_restore_defaults`), and `confirm_proposal` / `cancel_proposal`. There is no transfer, approve or resolve tool. A proposal is stored in `agent_proposals` as `pending`. `confirm_proposal` is refused by the server unless: (1) the proposal is pending, (2) it belongs to this user's chat, (3) the user wrote a message after the proposal, (4) the user's role may confirm the keys at that scope (`core/permissions.require_change`). "Only this time" writes `runs.context_json["overrides"]`. "Always" calls `playbook.write_settings` (or `append_note` / `write_text`), writes a `playbook_changed` audit row with before and after text, and recomputes `due_at` of affected open tasks. Every proposal, apply, cancel and chat call is audited. In `AI_MODE=cache` chat steps replay from `data/ai_cache/`.
+
+Tables added: `agent_proposals` (id, user_id, chat_msg_id, kind change|note|revert|restore, run_type, run_id, vendor_id, changes_json, payload_json, rationale, status pending|applied|cancelled, scope once|always, proposed_at, decided_by, decided_at) and `chat_messages` (id, user_id, run_id, role user|assistant, content, at).
+
+Routes: `POST /agent/chat {user_id, message, run_id?} -> {reply, proposals[]}` and `GET /agent/chat/history?user_id=&limit=`.
+
 ## 11. API contract
 
 Auth: no login. The UI sends `X-User-Id`. `permissions.py` enforces who may resolve or approve what.
@@ -235,6 +263,17 @@ POST /runs/{id}/approval        {user_id, decision: "approve"|"reject", reason,
 GET  /dashboard                 -> {invoices_by_state, dollars_at_risk, dollars_verified, dollars_paid,
                                       late_tasks, open_tasks_by_role}
 GET  /connectors/health
+GET  /buildings/{id}/overview   -> {kpis{open_workflows, late_steps, waiting_on_you, money_held_back},
+                                      needs_you[], late_and_escalated[], due_24h[], by_workflow_type{}}
+GET  /buildings/{id}/board      -> {building{id,name,beds}, as_of,
+                                      quadrants:[{key,title,headline,tone: good|warn|bad|neutral,
+                                                  lines[], source, live: bool}],   # residents, money, staffing
+                                      todos:[{title, owner, bucket: today|week|month, late, source: agent|mock}]}
+                                    # four-quadrant board; live=false means mock connector data
+GET  /portfolio                 -> {kpis{open_workflows, late_steps, dollars_at_risk, dollars_paid},
+                                      buildings:[{id, name, status: on_track|watch|act_now, open_runs, late_tasks,
+                                                  at_risk, held_back}],   # sorted worst first
+                                      needs_owner[], live_feed[]}          # live_feed = recent audit_log rows
 
 # demo controls
 POST /mock/email                {template: "harbor_4471" | "harbor_changed_bank" | ...}
@@ -242,6 +281,7 @@ POST /mock/bank/post            {account_id, payee, amount, reference}
 POST /mock/bank/balance         {account_id, balance}
 POST /mock/advance              {hours}
 POST /mock/tick
+# the inbox is read once a day (inbox_poll.daily_at) or when the user asks the chat (check_inbox_now); no endpoint forces a poll
 POST /mock/reset
 ```
 
@@ -274,17 +314,19 @@ Users seeded: administrator (Riverside), business_office_manager, don, cfo, owne
 
 ## 13. Frontend screens (React, Tailwind, `frontend/`)
 
-1. **Their world** (left panel): fake inbox with a "send invoice email" button per template, and a fake bank screen with "post payment" (prefilled from the payment task) and a balance field. These call the `/mock/*` endpoints. This panel is what shows that staff do not enter anything into the platform.
-2. **My work:** tasks for the selected role, late ones in red, each opening its run. Manual-check tasks have Verified / Not verified / Dispute buttons and a note.
-3. **Invoice detail:** a check grid per line (verified, failed, unverified), the packet with verified items and flagged items clearly separated, an approval form with per-line decisions, funds status, payment status, and a timeline from `timeline[]`.
-4. **Owner dashboard:** invoices by state, dollars at risk, verified, paid, late tasks, and a role switcher at the top (owner, administrator, business office manager, don, cfo) that sets `X-User-Id`.
-5. Demo bar: advance the clock (+3h, +24h, +48h), tick, reset.
+There is no "My work" task list: staff handle tasks in their own tools (inbox, Teams, EHR). The platform shows the work, not a to-do app. Three tabs plus a side panel:
 
-Landing is the role's My work list. No setup screens. Plain-language task titles. Empty states say what to do next.
+1. **Their world** (left panel): fake inbox with a "send invoice email" button per template, fake Teams and EHR feed showing where tasks land (`via`), and a fake bank screen with "post payment" (prefilled from the payment task) and a balance field. These call the `/mock/*` endpoints. Shows that staff do not enter anything into the platform. Includes the demo bar: advance the clock (+3h, +24h, +48h), tick, reset.
+2. **Workflows (shared):** workflow-type tabs (All, Vendor invoice audit, Resident fall, ... with counts), a list of open workflows of that type, and a detail panel: progress strip, steps with owner, due time and channel, per-line check grid (verified, failed, unverified), packet with verified and flagged items clearly separated, approval form with per-line decisions, manual-check buttons (Verified / Not verified / Dispute plus note), funds and payment status, timeline from `timeline[]`. Steps closed by observation are marked. Rendered generically from task `blocks` and run `context`, so a new workflow needs no new screen.
+3. **Overview (administrator, one building):** KPIs, Needs you, Late and escalated, Due in 24 hours, count by workflow type. Data from `GET /buildings/{id}/overview`.
+4. **Portfolio (owner, warboard):** dark wall-style screen from `GET /portfolio`. Big KPI numbers, one tile per building (about 10) sorted worst first with status word (On track / Watch / Act now), a Needs the owner panel, money at risk by building, and a live feed. Seed the nine non-Riverside buildings with a few synthetic runs and tasks so the board looks alive; only Riverside runs the live scenario.
+5. A role switcher at the top (owner, administrator, business office manager, don, cfo) sets `X-User-Id`. Landing is the Portfolio for owner, Overview for administrator, Workflows for everyone else.
+
+No setup screens. Plain-language task titles. Empty states say what to do next.
 
 ## 14. Tests
 
-Table-driven tests for each check. State-machine tests: happy path, manual-check loop, insufficient funds then retry, rejection, approval timeout escalation (use the clock). Payment matcher: exact match, wrong amount, no match. One end-to-end test: template email in, resolve manual check, approve, post bank transaction, assert run `CLOSED` and a reply exists in `mock_world/mailbox/sent`.
+Table-driven tests for each check. State-machine tests: happy path, manual-check loop, insufficient funds then retry, rejection, approval timeout escalation (use the clock). Payment matcher: exact match, wrong amount, no match. Bot tick idempotency test: a second tick with no new input changes no rows. One end-to-end test: template email in, resolve manual check, approve, post bank transaction, assert run `CLOSED` and a reply exists in `mock_world/mailbox/sent`.
 
 ## 15. Working agreements
 
@@ -296,4 +338,16 @@ Table-driven tests for each check. State-machine tests: happy path, manual-check
 
 ## 16. Out of scope for now
 
-Real PDF parsing, real email, real bank or PointClickCare connections, authentication, multi-building rollups beyond the dashboard, the resident fall scenario (stub only), mobile layout, and anything that moves money.
+Real PDF parsing and real email beyond the one dedicated inbox (section 9), real bank or PointClickCare connections, authentication, multi-building rollups beyond the Portfolio board (synthetic data for the other buildings), the resident fall scenario (stub only), mobile layout, and anything that moves money.
+
+
+## 17. Engine notes (Developer A)
+
+- **Playbook schema:** `workflows/invoice_audit/playbook_schema.py` is the whitelist (`extra="forbid"`, limits per value). Anything not declared there cannot be written. Writers call `core.playbook.write_settings(run_type, settings) -> (before, after)`; it validates, then writes, and raises `PlaybookError` without touching the live file.
+- **Finding status `skipped`:** a disabled check writes one invoice-level `skipped` finding. The packet lists it under `skipped` ("not checked by request") and it never counts toward `totals.verified`.
+- **Packet additions:** `skipped[]` and `disputed[]` (lines excluded or paid at contract, with billed and payable) next to the section 11 keys.
+- **extra_steps** are generic `extra_step` tasks created next to the manual checks. The run stays in `NEEDS_INFO` until every manual check and extra step is done, then the approval task is created.
+- **AI slots:** `workflows/invoice_audit/slots.py` is the only place the flow calls the AI layer. It tries B's `classify.classify_email`, `extract.extract_invoice` and `app.ai.summarize_packet / draft_reply / draft_dispute`, and falls back to a regex reader and text templates, so tests and the demo work offline. Each call writes an `ai_call` audit row with `via: ai|fallback`.
+- **Payment matching:** a bank transaction matches when it is on the payment's account, its reference contains `INV-<invoice_no>` (or the payee is the vendor) and `abs(amount)` equals the payable. A different amount marks the payment `mismatch` (reported once) and leaves the run in `AWAITING_PAYMENT`.
+- **Demo endpoints** run a tick immediately. `POST /mock/reset` rebuilds runs, tasks, the mock world and the clock, and leaves `data/playbooks/` alone.
+- Env: `DISABLE_SCHEDULER=1` turns off the 5 s loop (tests).

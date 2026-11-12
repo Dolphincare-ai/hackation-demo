@@ -1,0 +1,28 @@
+{
+  "kpis": {"open_workflows": 24, "late_steps": 12, "dollars_at_risk": 32510, "dollars_paid": 86400},
+  "buildings": [
+    {"id": "riverside", "name": "Riverside Care", "status": "act_now", "open_runs": 4, "late_tasks": 3, "at_risk": 4010, "held_back": 3410},
+    {"id": "oakmont", "name": "Oakmont Manor", "status": "act_now", "open_runs": 5, "late_tasks": 5, "at_risk": 18200, "held_back": 6200},
+    {"id": "willow", "name": "Willow Creek", "status": "watch", "open_runs": 3, "late_tasks": 2, "at_risk": 5400, "held_back": 0},
+    {"id": "maple", "name": "Maple Grove", "status": "watch", "open_runs": 3, "late_tasks": 1, "at_risk": 2150, "held_back": 1200},
+    {"id": "pine", "name": "Pine Hollow", "status": "watch", "open_runs": 2, "late_tasks": 1, "at_risk": 1800, "held_back": 0},
+    {"id": "cedar", "name": "Cedar Ridge", "status": "on_track", "open_runs": 2, "late_tasks": 0, "at_risk": 0, "held_back": 0},
+    {"id": "lakeview", "name": "Lakeview Health", "status": "on_track", "open_runs": 3, "late_tasks": 0, "at_risk": 950, "held_back": 0},
+    {"id": "sunrise", "name": "Sunrise Terrace", "status": "on_track", "open_runs": 2, "late_tasks": 0, "at_risk": 0, "held_back": 0},
+    {"id": "harbor", "name": "Harbor Point", "status": "on_track", "open_runs": 3, "late_tasks": 0, "at_risk": 0, "held_back": 0},
+    {"id": "birch", "name": "Birch Meadows", "status": "on_track", "open_runs": 2, "late_tasks": 0, "at_risk": 0, "held_back": 0}
+  ],
+  "needs_owner": [
+    {"building_id": "oakmont", "title": "Approve Harbor Pharmacy invoice ($14,820), over $10,000", "due_in_h": 6, "late": false},
+    {"building_id": "oakmont", "title": "Approval overdue: Medline supply invoice #9921", "due_in_h": -2, "late": true},
+    {"building_id": "riverside", "title": "Bank details changed on Harbor Pharmacy invoice", "due_in_h": 3, "late": false}
+  ],
+  "live_feed": [
+    {"at": "09:42", "building_id": "riverside", "text": "Invoice #4471 checked: 2 failed, 1 unverified"},
+    {"at": "09:41", "building_id": "riverside", "text": "Manual check created for DON: enoxaparin delivery"},
+    {"at": "09:30", "building_id": "oakmont", "text": "Escalated approval to owner"},
+    {"at": "09:12", "building_id": "willow", "text": "Funds check retry failed, CFO alerted"},
+    {"at": "08:55", "building_id": "lakeview", "text": "Payment matched on bank feed, thread replied"},
+    {"at": "08:40", "building_id": "maple", "text": "Invoice #2203 received and extracted"}
+  ]
+}

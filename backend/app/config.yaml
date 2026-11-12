@@ -1,0 +1,55 @@
+# Config over code: roles, ladders, thresholds, reserves. See CLAUDE.md section 7.
+# These are ENGINE DEFAULTS. The live agent playbook (data/playbooks/<run_type>.md) overrides them,
+# and a run's "only this time" overrides beat both. See core/settings.py.
+roles: [owner, administrator, business_office_manager, don, cfo]
+
+# Default role and due time (hours after creation) per task kind.
+# `payment` has no due_h: its due date is the invoice due_date minus payment_due_days_before.
+task_defaults:
+  manual_entry: {role: business_office_manager, due_h: 8}
+  manual_check: {role: business_office_manager, due_h: 8}
+  extra_step:   {role: administrator, due_h: 8}
+  approval:     {role: administrator, due_h: 24}
+  funds_check:  {role: cfo, due_h: 4}
+  payment:      {role: business_office_manager}
+
+# manual_check role depends on which check could not verify.
+manual_check_roles: {delivery: don, price: business_office_manager, date: administrator}
+
+payment_due_days_before: 2
+
+# Hours are measured since task creation, except kinds listed in ladder_from_due (measured since due_at).
+ladders:
+  manual_check: [{after_h: 8,  action: remind, to: [assignee_role]}, {after_h: 24, action: alert, to: [administrator]}]
+  extra_step:   [{after_h: 8,  action: remind, to: [assignee_role]}]
+  approval:     [{after_h: 24, action: remind, to: [assignee_role]}, {after_h: 48, action: alert, to: [owner, backup_approver]}]
+  funds_check:  [{after_h: 4,  action: alert,  to: [cfo, business_office_manager]}]
+  payment:      [{after_h: 0,  action: alert,  to: [business_office_manager, administrator]}]
+ladder_from_due: [payment]
+
+approval_owner_threshold: 10000
+reserve_min: 5000
+backup_approver_role: owner
+
+checks:
+  price: {enabled: true}
+  date: {enabled: true}
+  delivery: {enabled: true}
+  math: {enabled: true}
+  duplicate: {enabled: true}
+  bank_details: {enabled: true}
+
+extra_steps: []
+
+# How often the bot reads the inbox: every_tick (every 5 s) or daily at daily_at (24h, server local time).
+inbox_poll: {mode: daily, daily_at: "09:00"}
+
+# Which building an inbox belongs to, and which bank account pays for that building.
+mailbox_buildings: {"ap@riverside.example": riverside}
+bank_accounts: {riverside: acct_riverside_op}
+
+# Who may confirm a change proposed in the agent chat.
+change_permissions:
+  once: [owner, administrator, business_office_manager, cfo]   # "only this time"
+  always: [owner, administrator]                              # standing playbook changes
+  owner_only: [reserve_min, approval_owner_threshold]          # keys only the owner may change

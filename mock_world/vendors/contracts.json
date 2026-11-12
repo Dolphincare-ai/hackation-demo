@@ -1,0 +1,47 @@
+[
+  {
+    "vendor_id": "harbor",
+    "item_key": "metformin_500",
+    "description": "Metformin 500 mg",
+    "unit": "tablet",
+    "rate": 0.09,
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31"
+  },
+  {
+    "vendor_id": "harbor",
+    "item_key": "lisinopril_10",
+    "description": "Lisinopril 10 mg",
+    "unit": "tablet",
+    "rate": 0.11,
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31"
+  },
+  {
+    "vendor_id": "harbor",
+    "item_key": "atorvastatin_40",
+    "description": "Atorvastatin 40 mg",
+    "unit": "tablet",
+    "rate": 0.52,
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31"
+  },
+  {
+    "vendor_id": "harbor",
+    "item_key": "apixaban_5",
+    "description": "Apixaban 5 mg",
+    "unit": "tablet",
+    "rate": 6.8,
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31"
+  },
+  {
+    "vendor_id": "harbor",
+    "item_key": "enoxaparin_40",
+    "description": "Enoxaparin 40 mg",
+    "unit": "syringe",
+    "rate": 24.5,
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31"
+  }
+]

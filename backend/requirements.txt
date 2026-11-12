@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+pydantic
+pytest
+openai
+boto3
+pyyaml
+python-dotenv
+httpx
+reportlab
+pypdf
+boto3
