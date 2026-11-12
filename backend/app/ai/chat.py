@@ -389,21 +389,32 @@ def _system(session, user: User, run_id) -> str:
     ctx = f"\n\nYou are talking to {user.name}, the {user.role.replace('_', ' ')}. Today is {clock.now():%Y-%m-%d %H:%M}."
     if run_id:
         ctx += f" They have run {run_id} open."
+    pending = session.exec(select(AgentProposal).where(AgentProposal.user_id == user.id, AgentProposal.status == "pending")
+                           .order_by(AgentProposal.id)).all()
+    if pending:  # history keeps text only, so the model needs the ids to confirm or cancel on the user's next message
+        ctx += "\n\n# Pending proposals (waiting for this user's answer; use these ids with confirm_proposal / cancel_proposal)\n"
+        ctx += "\n".join(f"- id {p.id} ({p.kind}, run {p.run_id}): {_describe(p)}" for p in pending)
     return prompt("chat") + ctx + "\n\n# Current playbook (prose)\n" + pb.prose
 
 
 # ---------------------------------------------------------------- entry point
-def chat(session: Session, user_id: str, message: str, run_id: int | None = None, since_id: int | None = None) -> dict:
-    """since_id: id of the first message of this conversation; older messages are not sent to the model."""
+def chat(session: Session, user_id: str, message: str, run_id: int | None = None, conversation_id: int | None = None) -> dict:
+    """conversation_id: continue that conversation (only its messages go to the model). None starts a new one."""
     user = session.get(User, user_id)
     if user is None:
         raise permissions.Forbidden("Unknown user")
-    um = ChatMessage(user_id=user_id, run_id=run_id, role="user", content=message, at=clock.now())
+    if conversation_id and session.exec(select(ChatMessage.id).where(
+            ChatMessage.user_id == user_id, ChatMessage.conversation_id == conversation_id)).first() is None:
+        conversation_id = None  # unknown or someone else's conversation
+    um = ChatMessage(user_id=user_id, run_id=run_id, conversation_id=conversation_id, role="user", content=message, at=clock.now())
     session.add(um)
     session.flush()
+    if not um.conversation_id:
+        um.conversation_id = um.id
+    conversation_id = um.conversation_id
     ctx = {"user_id": user_id, "run_id": run_id, "msg_id": um.id}
-    q = select(ChatMessage).where(ChatMessage.user_id == user_id, ChatMessage.id < um.id)
-    q = q.where(ChatMessage.id >= since_id) if since_id else q.where(ChatMessage.id >= um.id)  # no since_id: new conversation
+    q = select(ChatMessage).where(ChatMessage.user_id == user_id, ChatMessage.conversation_id == conversation_id,
+                                  ChatMessage.id < um.id)
     hist = session.exec(q.order_by(ChatMessage.id.desc()).limit(HISTORY)).all()[::-1]
     messages = [{"role": "system", "content": _system(session, user, run_id)}]
     messages += [{"role": m.role, "content": m.content} for m in hist] + [{"role": "user", "content": message}]
@@ -436,12 +447,30 @@ def chat(session: Session, user_id: str, message: str, run_id: int | None = None
         log.warning("chat unavailable: %s", e)
         reply = OFFLINE
     audit.log(session, "claude", "ai_call", run_id, {"slot": "chat", "user": user_id})
-    session.add(ChatMessage(user_id=user_id, run_id=run_id, role="assistant", content=reply, at=clock.now()))
+    session.add(ChatMessage(user_id=user_id, run_id=run_id, conversation_id=conversation_id, role="assistant",
+                            content=reply, at=clock.now()))
     pending = session.exec(select(AgentProposal).where(AgentProposal.user_id == user_id, AgentProposal.status == "pending")).all()
-    return {"reply": reply, "proposals": [_proposal_out(p) for p in pending], "start_id": since_id or um.id}
+    return {"reply": reply, "proposals": [_proposal_out(p) for p in pending], "conversation_id": conversation_id}
 
 
-def history(session: Session, user_id: str, limit: int = 50) -> list[dict]:
-    rows = session.exec(select(ChatMessage).where(ChatMessage.user_id == user_id)
-                        .order_by(ChatMessage.id.desc()).limit(limit)).all()[::-1]
-    return [{"id": m.id, "role": m.role, "content": m.content, "at": m.at, "run_id": m.run_id} for m in rows]
+def history(session: Session, user_id: str, limit: int = 50, conversation_id: int | None = None) -> list[dict]:
+    q = select(ChatMessage).where(ChatMessage.user_id == user_id)
+    if conversation_id:
+        q = q.where(ChatMessage.conversation_id == conversation_id)
+    rows = session.exec(q.order_by(ChatMessage.id.desc()).limit(limit)).all()[::-1]
+    return [{"id": m.id, "role": m.role, "content": m.content, "at": m.at, "run_id": m.run_id,
+             "conversation_id": m.conversation_id} for m in rows]
+
+
+def conversations(session: Session, user_id: str) -> list[dict]:
+    """One row per conversation, newest first. Title = the first thing the user said."""
+    rows = session.exec(select(ChatMessage).where(ChatMessage.user_id == user_id).order_by(ChatMessage.id)).all()
+    out: dict[int, dict] = {}
+    for m in rows:
+        cid = m.conversation_id or m.id
+        c = out.setdefault(cid, {"id": cid, "title": "", "started_at": m.at, "last_at": m.at, "count": 0})
+        if m.role == "user" and not c["title"]:
+            c["title"] = m.content[:60]
+        c["last_at"] = m.at
+        c["count"] += 1
+    return sorted(out.values(), key=lambda c: c["id"], reverse=True)

@@ -118,6 +118,7 @@ class ChatMessage(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: str = Field(index=True)
     run_id: int | None = None
+    conversation_id: int | None = Field(default=None, index=True)  # id of the first message of the conversation
     role: str  # user | assistant
     content: str
     at: NaiveDatetime

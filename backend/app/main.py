@@ -16,7 +16,7 @@ from .api.routes_portfolio import router as portfolio_router
 from .api.routes_runs import router as runs_router
 from .api.routes_tasks import router as tasks_router
 from .core.permissions import Forbidden
-from .db import get_engine
+from .db import get_engine, migrate
 
 log = logging.getLogger("scheduler")
 TICK_SECONDS = 5
@@ -33,7 +33,7 @@ async def _loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    SQLModel.metadata.create_all(get_engine())  # create missing tables, keep existing data
+    migrate()  # create missing tables and columns, keep existing data
     task = None if os.environ.get("DISABLE_SCHEDULER") else asyncio.create_task(_loop())
     yield
     if task:

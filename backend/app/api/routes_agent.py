@@ -14,14 +14,14 @@ class ChatBody(BaseModel):
     user_id: str | None = None
     message: str
     run_id: int | None = None
-    since_id: int | None = None
+    conversation_id: int | None = None
 
 
 @router.post("/agent/chat")
 def post_chat(body: ChatBody, session=Depends(session_dep), x_user_id=Depends(x_user)):
     user = acting_user(session, body.user_id, x_user_id)
     try:
-        out = chat_mod.chat(session, user.id if user else "", body.message.strip()[:2000], body.run_id, body.since_id)
+        out = chat_mod.chat(session, user.id if user else "", body.message.strip()[:2000], body.run_id, body.conversation_id)
         session.commit()
     except Exception:
         session.rollback()
@@ -31,15 +31,22 @@ def post_chat(body: ChatBody, session=Depends(session_dep), x_user_id=Depends(x_
 
 @router.get("/agent/chat/history")
 def get_history(user_id: str | None = None, limit: int = 50, run_id: int | None = None,
+                conversation_id: int | None = None,
                 session=Depends(session_dep), x_user_id=Depends(x_user)):
-    """run_id omitted: every message. run_id=0: only the general chat. run_id=N: only that workflow's chat."""
+    """conversation_id: only that conversation. run_id omitted: every message. run_id=0: only general. run_id=N: that workflow."""
     user = acting_user(session, user_id, x_user_id)
     if not user:
         return []
-    rows = chat_mod.history(session, user.id, 200)
+    rows = chat_mod.history(session, user.id, 200, conversation_id)
     if run_id is not None:
         rows = [m for m in rows if (m["run_id"] or 0) == run_id]
     return rows[-min(limit, 200):]
+
+
+@router.get("/agent/conversations")
+def get_conversations(user_id: str | None = None, session=Depends(session_dep), x_user_id=Depends(x_user)):
+    user = acting_user(session, user_id, x_user_id)
+    return chat_mod.conversations(session, user.id) if user else []
 
 
 def _sentence(session, a, detail) -> tuple[str, dict]:
