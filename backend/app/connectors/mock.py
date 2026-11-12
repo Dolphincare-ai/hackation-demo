@@ -44,6 +44,9 @@ class MockMailbox(_Base):
         _write(seen_file, sorted(seen))
         return new
 
+    def mark_read(self, email: Email) -> None:
+        """The mock inbox has no read flag (seen.json already tracks it)."""
+
     def send(self, msg: Outgoing) -> None:
         sent = self.root / "mailbox" / "sent"
         n = len(list(sent.glob("*.json"))) + 1 if sent.exists() else 1

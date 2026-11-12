@@ -35,9 +35,9 @@ export default function App() {
         </select>
       </div>
       {tab === "workflows"
-        ? <Workflows userId={userId} onSelect={setRunId} />
+        ? <Workflows userId={userId} onSelect={setRunId} focusId={runId} />
         : view === "all" ? <Portfolio onOpen={setView} /> : <BuildingBoard id={view} />}
-      <AgentBot userId={userId} runId={tab === "workflows" ? runId : null} />
+      <AgentBot userId={userId} runId={tab === "workflows" ? runId : null} onOpenWorkflow={(id) => { setRunId(id); setTab("workflows"); }} />
     </div>
   );
 }

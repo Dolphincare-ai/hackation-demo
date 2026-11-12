@@ -17,9 +17,9 @@ export async function api(path, opts = {}, userId) {
   return d;
 }
 
-export default function Workflows({ userId, onSelect }) {
+export default function Workflows({ userId, onSelect, focusId }) {
   const [runs, setRuns] = useState([]);
-  const [sel, setSel] = useState(null);
+  const [sel, setSel] = useState(focusId || null);
   const [tab, setTab] = useState("all");
 
   useEffect(() => {

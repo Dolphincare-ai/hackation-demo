@@ -233,7 +233,24 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
         return finding_out(f)
     if name == "check_inbox_now":
         audit.log(session, "claude", "inbox_check_requested", None, {"user": ctx["user_id"]})
-        return bot.tick(session, force_poll=True)
+        before = session.exec(select(AuditLog).order_by(AuditLog.id.desc())).first()
+        before_id = before.id if before else 0
+        out = bot.tick(session, force_poll=True)
+        # Runs started by THIS check belong to this chat: the activity feed follows them here.
+        # Runs the scheduler starts on its own are never watched, so they only show in the Workflows tab.
+        started = session.exec(select(AuditLog).where(AuditLog.id > before_id, AuditLog.action == "run_started")).all()
+        runs = []
+        for a in started:
+            run = session.get(Run, a.run_id)
+            if run is None:
+                continue
+            audit.log(session, "claude", "chat_run_watched", run.id, {"user": ctx["user_id"]})
+            open_tasks = session.exec(select(Task).where(Task.run_id == run.id, Task.status == "open")).all()
+            runs.append({"run_id": run.id, "title": run.title, "state": run.state,
+                         "open_tasks": [{"title": t.title, "role": t.role} for t in open_tasks]})
+        return {**out, "new_runs": runs,
+                "note": "Give a short status of each new run (state and who has to act). Details are in the Workflows tab. "
+                        "Then ask the user what they want to do next."}
     if name == "propose_change":
         changes = a.get("changes") or []
         if not changes:

@@ -9,7 +9,7 @@ One tick does, in order:
 
 A tick is idempotent: with no new input it changes nothing. It never moves money.
 """
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 
 from sqlmodel import Session, select
 
@@ -34,18 +34,23 @@ def _kv_set(session: Session, key: str, value: str) -> None:
         session.add(row)
 
 
+def _local(utc_naive: datetime) -> datetime:
+    """clock.now() is naive UTC; the daily poll time is the server's local wall-clock time."""
+    return utc_naive.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+
+
 def _poll_due(session: Session, run_type: str) -> bool:
     cfg = settings.effective(run_type, "inbox_poll", default={}) or {}
     if cfg.get("mode", "every_tick") == "every_tick":
         return True
-    # daily: due once the clock passes today's daily_at and we have not polled since then
-    hh, mm = (cfg.get("daily_at") or "07:00").split(":")
-    now = clock.now()
+    # daily: due once local wall-clock time passes today's daily_at and we have not polled since then
+    hh, mm = (cfg.get("daily_at") or "09:00").split(":")
+    now = _local(clock.now())
     slot = datetime.combine(now.date(), time(int(hh), int(mm)))
     if now < slot:
         return False
     last = _kv_get(session, f"last_inbox_poll:{run_type}")
-    return last is None or datetime.fromisoformat(last) < slot
+    return last is None or _local(datetime.fromisoformat(last)) < slot
 
 
 def poll_inbox(session: Session, force: bool = False) -> int:
@@ -57,8 +62,9 @@ def poll_inbox(session: Session, force: bool = False) -> int:
     now = clock.now().isoformat()
     for h in due:
         _kv_set(session, f"last_inbox_poll:{h.run_type}", now)
+    mailbox = get_connectors().mailbox
     try:
-        emails = get_connectors().mailbox.poll()
+        emails = mailbox.poll()
     except ConnectorError as e:  # offline or bad login: log once per distinct error, never crash the tick
         if _kv_get(session, "last_inbox_error") != str(e):
             _kv_set(session, "last_inbox_error", str(e))
@@ -72,6 +78,11 @@ def poll_inbox(session: Session, force: bool = False) -> int:
     for email in emails:
         if any(h.on_email(session, email) for h in handlers):
             started += 1
+            try:  # only mail that started a run is marked read; everything else stays unread
+                mailbox.mark_read(email)
+                audit.log(session, "system", "email_marked_read", None, {"email_id": email.id})
+            except ConnectorError as e:
+                audit.log(session, "system", "inbox_error", None, {"error": f"could not mark read: {e}"})
         else:
             audit.log(session, "system", "email_ignored", None, {"email_id": email.id, "subject": email.subject})
     return started

@@ -1,8 +1,9 @@
 """Real mailbox over IMAP (read) and, only when REPLY_MODE=smtp, SMTP (reply).
 
-Reads only unread mail and marks it read once the bot has taken it:
-  * SEARCH UNSEEN, FETCH BODY.PEEK[], then STORE +FLAGS \\Seen (skipped when IMAP_MARK_READ=0,
-    which also opens INBOX read-only). Nothing else is ever changed or deleted.
+Reads only unread mail. poll() never changes a flag. Only mail that the bot recognised as an invoice
+(it started a run) is marked read, through mark_read(); everything else stays unread:
+  * SEARCH UNSEEN SINCE, FETCH BODY.PEEK[]. mark_read() then does STORE +FLAGS \\Seen on that one mail
+    (skipped when IMAP_MARK_READ=0). Nothing else is ever changed or deleted.
   * Dedupe by Message-ID in a small SQLite file next to the platform database, a second guard in
     case marking read fails or is switched off. (A separate file, not platform.db: the bot
     holds a write transaction there while it polls.)
@@ -79,7 +80,7 @@ class ImapMailbox(MockMailbox):
         self.port = int(os.environ.get("IMAP_PORT", port))
         self.seen_db = seen_db or (data_dir() / "imap_seen.db")
         self.max_age_days = int(os.environ.get("IMAP_MAX_AGE_DAYS", 30))
-        self.mark_read =os.environ.get("IMAP_MARK_READ", "1") != "0"  # set 0 to leave mail unread (re-demo)
+        self.mark_read_enabled = os.environ.get("IMAP_MARK_READ", "1") != "0"  # set 0 to leave mail unread (re-demo)
 
     @property
     def info(self) -> dict:
@@ -97,11 +98,11 @@ class ImapMailbox(MockMailbox):
             c.execute("DELETE FROM seen")
 
     # ---- read ----
-    def _connect(self) -> imaplib.IMAP4_SSL:
+    def _connect(self, readonly: bool = True) -> imaplib.IMAP4_SSL:
         try:
             m = imaplib.IMAP4_SSL(self.host, self.port, timeout=20)
             m.login(self.user, self.password)
-            m.select("INBOX", readonly=not self.mark_read)  # writable only so we can set \Seen
+            m.select("INBOX", readonly=readonly)  # writable only to set \Seen in mark_read()
             return m
         except (imaplib.IMAP4.error, OSError) as e:
             raise ConnectorError(f"IMAP login or connect failed: {e}") from e
@@ -121,16 +122,19 @@ class ImapMailbox(MockMailbox):
                 raise ConnectorError("IMAP search failed")
             with self._seen_conn() as db:
                 for uid in (data[0] or b"").split():
-                    typ, parts = m.uid("FETCH", uid, "(BODY.PEEK[])")
-                    raw = next((p[1] for p in parts if isinstance(p, tuple)), None) if typ == "OK" else None
+                    # mail the bot ignored stays unread, so it is listed again: skip it after a header-only fetch
+                    head = self._fetch(m, uid, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+                    if head is not None:
+                        mid = (emaillib.message_from_bytes(head, policy=policy.default)["Message-ID"] or "").strip()
+                        if mid and db.execute("SELECT 1 FROM seen WHERE message_id = ?", (mid.strip("<>"),)).fetchone():
+                            continue
+                    raw = self._fetch(m, uid, "(BODY.PEEK[])")
                     if raw is None:
                         continue
                     mail = parse_message(raw, self.user)
                     cur = db.execute("INSERT OR IGNORE INTO seen VALUES (?, ?)", (mail.id, clock.now().isoformat()))
                     if cur.rowcount:  # first time we see this Message-ID
                         out.append(mail)
-                    if self.mark_read:  # taken by the bot: mark read (also for repeats, so they leave UNSEEN)
-                        m.uid("STORE", uid, "+FLAGS", "(\\Seen)")
         except imaplib.IMAP4.error as e:
             raise ConnectorError(f"IMAP error: {e}") from e
         finally:
@@ -140,6 +144,28 @@ class ImapMailbox(MockMailbox):
                 pass
         self.last_read = clock.now()
         return out
+
+    @staticmethod
+    def _fetch(m, uid, what) -> bytes | None:
+        typ, parts = m.uid("FETCH", uid, what)
+        return next((p[1] for p in parts if isinstance(p, tuple)), None) if typ == "OK" else None
+
+    def mark_read(self, mail: Email) -> None:
+        """Set \\Seen on one mail. The bot calls this only for emails that started a run (invoices)."""
+        if not self.mark_read_enabled:
+            return
+        m = self._connect(readonly=False)
+        try:
+            typ, data = m.uid("SEARCH", None, "HEADER", "Message-ID", mail.id)
+            for uid in (data[0] or b"").split() if typ == "OK" else []:
+                m.uid("STORE", uid, "+FLAGS", "(\\Seen)")
+        except imaplib.IMAP4.error as e:
+            raise ConnectorError(f"IMAP error: {e}") from e
+        finally:
+            try:
+                m.logout()
+            except Exception:
+                pass
 
     # ---- reply ----
     def send(self, msg: Outgoing) -> None:

@@ -1,6 +1,6 @@
 """State machine, API and end-to-end tests. Driven through the HTTP API, with the clock frozen."""
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -308,7 +308,8 @@ def test_tick_is_idempotent(client):
 
 def test_daily_poll_under_clock_advance(client):
     from app.connectors import get_connectors
-    clock.freeze(datetime(2026, 11, 11, 6, 0))
+    # 06:00 server-local time, expressed as the naive UTC the clock uses (the daily poll runs on local time)
+    clock.freeze(datetime(2026, 11, 11, 6, 0).astimezone().astimezone(timezone.utc).replace(tzinfo=None))
     cfg = dict(playbook.load("invoice_audit").settings)
     cfg["inbox_poll"] = {"mode": "daily", "daily_at": "07:00"}
     playbook.write_settings("invoice_audit", cfg)

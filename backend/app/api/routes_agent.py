@@ -94,11 +94,17 @@ def get_activity(user_id: str | None = None, after_id: int = 0, run_id: int | No
     cursor = last.id if last else 0
     if after_id < 0:
         return {"cursor": cursor, "events": []}
+    # Only runs this user started from the chat (chat_run_watched) are narrated here.
+    # Everything the bot does on its own is shown in the Workflows tab, not in the chat.
+    watched = {a.run_id for a in session.exec(select(AuditLog).where(AuditLog.action == "chat_run_watched")).all()
+               if user and j(a.detail_json, {}).get("user") == user.id}
     q = select(AuditLog).where(AuditLog.id > after_id).order_by(AuditLog.id)
     if run_id:
         q = q.where(AuditLog.run_id == run_id)
     events = []
     for a in session.exec(q).all():
+        if a.run_id not in watched:
+            continue
         text, extra = _sentence(session, a, j(a.detail_json, {}))
         if not text:
             continue

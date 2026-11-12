@@ -48,7 +48,7 @@ task_defaults:
   manual_check: {due_h: 8}
   approval: {due_h: 24}
   funds_check: {due_h: 4}
-inbox_poll: {mode: every_tick, daily_at: "07:00"}
+inbox_poll: {mode: daily, daily_at: "09:00"}
 approval_owner_threshold: 10000
 reserve_min: 5000
 ```

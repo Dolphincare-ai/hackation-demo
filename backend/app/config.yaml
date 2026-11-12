@@ -41,8 +41,8 @@ checks:
 
 extra_steps: []
 
-# How often the bot reads the inbox: every_tick (every 5 s) or daily at daily_at (24h clock, platform time).
-inbox_poll: {mode: every_tick, daily_at: "07:00"}
+# How often the bot reads the inbox: every_tick (every 5 s) or daily at daily_at (24h, server local time).
+inbox_poll: {mode: daily, daily_at: "09:00"}
 
 # Which building an inbox belongs to, and which bank account pays for that building.
 mailbox_buildings: {"ap@riverside.example": riverside}

@@ -17,6 +17,7 @@ class FakeServer:
     """Class-level state so every IMAP4_SSL() the connector opens sees the same mailbox."""
     messages: dict[bytes, dict] = {}
     commands: list = []
+    fetched: list = []
     expect_since = None  # tests that freeze the clock set the exact date they expect
     max_age = 30
 
@@ -32,6 +33,9 @@ class FakeServer:
 
     def uid(self, cmd, *args):
         FakeServer.commands.append((cmd, *args))
+        if cmd == "SEARCH" and args[1] == "HEADER":
+            assert args[2] == "Message-ID"
+            return "OK", [b" ".join(u for u, m in FakeServer.messages.items() if args[3].encode() in m["raw"])]
         if cmd == "SEARCH":
             assert args[1:3] == ("UNSEEN", "SINCE")
             assert FakeServer.expect_since is None or args[3] == FakeServer.expect_since
@@ -40,7 +44,8 @@ class FakeServer:
             return "OK", [ids]
         if cmd == "FETCH":
             uid, what = args
-            assert what == "(BODY.PEEK[])"  # plain BODY[] would set \Seen
+            assert what in ("(BODY.PEEK[])", "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")  # plain BODY[] would set \Seen
+            FakeServer.fetched.append((uid, what))
             return "OK", [(b"1 (UID 1 BODY[] {1}", FakeServer.messages[uid]["raw"]), b")"]
         if cmd == "STORE":
             uid, op, flags = args
@@ -67,7 +72,7 @@ def mail(msg_id, subject="Harbor Pharmacy invoice #4471 (October)", pdf: bytes |
 
 @pytest.fixture
 def server(monkeypatch):
-    FakeServer.messages, FakeServer.commands = {}, []
+    FakeServer.messages, FakeServer.commands, FakeServer.fetched = {}, [], []
     FakeServer.expect_since, FakeServer.max_age = None, 30
     monkeypatch.setattr(imaplib, "IMAP4_SSL", FakeServer)
     for k, v in dict(MAILBOX_MODE="imap", IMAP_HOST="imap.example.com", IMAP_USER="riverside.ap@example.com",
@@ -80,25 +85,51 @@ def add(server, uid, raw, seen=False):
     server.messages[uid] = {"raw": raw, "seen": seen}
 
 
-def test_only_unseen_mail_is_returned_and_then_marked_read(server, tmp_path):
+def test_poll_returns_only_unseen_mail_and_changes_no_flag(server, tmp_path):
     add(server, b"1", mail("<a@x>", pdf=build("default", tmp_path / "o").read_bytes()))
     add(server, b"2", mail("<b@x>"), seen=True)
     got = get_connectors().mailbox.poll()
     assert [e.id for e in got] == ["a@x"]
-    assert server.messages[b"1"]["seen"] is True  # taken by the bot, so it is read now
-    assert [c[1] for c in server.commands if c[0] == "STORE"] == [b"1"]  # the already-read mail is untouched
-    assert not any(c[0] in ("COPY", "EXPUNGE") for c in server.commands)
-    assert get_connectors().mailbox.poll() == []  # nothing unread left
-
-
-def test_mark_read_off_keeps_mail_unread_and_selects_read_only(server, monkeypatch):
-    monkeypatch.setenv("IMAP_MARK_READ", "0")
-    add(server, b"1", mail("<a@x>"))
-    assert len(get_connectors().mailbox.poll()) == 1
-    assert server.messages[b"1"]["seen"] is False
+    assert server.messages[b"1"]["seen"] is False  # poll alone never marks read
     assert ("SELECT", "INBOX", True) in server.commands
+    assert not any(c[0] in ("STORE", "COPY", "EXPUNGE") for c in server.commands)
+
+
+def test_mark_read_sets_seen_on_that_mail_only(server):
+    add(server, b"1", mail("<a@x>"))
+    add(server, b"2", mail("<b@x>"))
+    box = get_connectors().mailbox
+    first, second = box.poll()
+    box.mark_read(first)
+    assert server.messages[b"1"]["seen"] is True and server.messages[b"2"]["seen"] is False
+
+
+def test_only_the_invoice_is_marked_read_by_the_bot(server, session, tmp_path):
+    add(server, b"1", mail("<inv@x>", pdf=build("default", tmp_path / "o").read_bytes()))
+    add(server, b"2", mail("<chat@x>", subject="Lunch on Friday?"))
+    bot.tick(session, force_poll=True)
+    assert session.exec(select(Run)).all()  # the invoice started a run
+    assert server.messages[b"1"]["seen"] is True  # invoice: read
+    assert server.messages[b"2"]["seen"] is False  # not an invoice: left unread
+    assert any(a.action == "email_ignored" for a in session.exec(select(AuditLog)).all())
+
+
+def test_ignored_mail_is_not_downloaded_again_on_the_next_poll(server, session):
+    add(server, b"2", mail("<chat@x>", subject="Lunch on Friday?"))
+    bot.tick(session, force_poll=True)
+    server.fetched.clear()
+    bot.tick(session, force_poll=True)
+    assert all(what != "(BODY.PEEK[])" for _, what in server.fetched)  # headers only
+    assert len(session.exec(select(Run)).all()) == 0
+
+
+def test_mark_read_off_leaves_even_invoices_unread(server, session, monkeypatch, tmp_path):
+    monkeypatch.setenv("IMAP_MARK_READ", "0")
+    add(server, b"1", mail("<inv@x>", pdf=build("default", tmp_path / "o").read_bytes()))
+    bot.tick(session, force_poll=True)
+    assert session.exec(select(Run)).all()
+    assert server.messages[b"1"]["seen"] is False
     assert not any(c[0] == "STORE" for c in server.commands)
-    assert get_connectors().mailbox.poll() == []  # still deduped by Message-ID
 
 
 def test_pdf_text_reaches_attachments(server, tmp_path):

@@ -63,7 +63,7 @@ class AdvanceBody(BaseModel):
 @router.post("/mock/email")
 def mock_email(body: EmailBody):
     eid = get_connectors().mailbox.drop_template(body.template)
-    return {"email_id": eid, **run_tick(force_poll=True)}  # read the inbox right away (it is a demo)
+    return {"email_id": eid, **run_tick()}  # the email waits for the daily poll or a chat "check the inbox"
 
 
 @router.post("/mock/bank/post")
@@ -87,12 +87,6 @@ def mock_advance(body: AdvanceBody):
 @router.post("/mock/tick")
 def mock_tick():
     return run_tick()
-
-
-@router.post("/mock/inbox/check")
-def mock_inbox_check():
-    """The demo bar's 'Check inbox' button: read the mailbox now, whatever the poll schedule says."""
-    return run_tick(force_poll=True)
 
 
 @router.post("/mock/reset")
