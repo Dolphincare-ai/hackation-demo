@@ -13,14 +13,15 @@
       "type": "bullets",
       "seconds": 40,
       "kicker": "The problem",
-      "title": "Software fatigue, and money leaking between the systems",
+      "title": "Software fatigue: many systems, nothing connecting them",
       "bullets": [
-        "A building runs on many disconnected tools: EHR (census), AP inbox, vendor contracts, delivery logs, bank, Teams",
-        "Nobody cross-checks them, so a pharmacy can bill above contract, bill after a resident was discharged, or bill for items never delivered",
-        "Changed bank details on an invoice is a classic payment-fraud route",
-        "Every wait (approval, manual check, low funds) lives in someone's head or inbox, and nothing escalates when it stalls"
+        "Each building runs a dozen tools (EHR, scheduling, payroll, AP inbox, vendor portals, bank, Teams), and none of them talk to each other",
+        "The administrator and the business office become the glue: re-keying, cross-checking and chasing people by hand",
+        "Work that crosses systems falls through the cracks: invoices paid as billed, fall follow-ups missed, admission paperwork stalled",
+        "Every wait lives in someone's inbox. Nothing escalates when it stalls, and the owner of 10 buildings can't see where things are stuck"
       ],
-      "notes": "From the operator calls: nursing homes have plenty of software but nothing pulling it together. Take one invoice. To check it properly, someone has to open the contract, the delivery log, the census in the EHR and the bank. Nobody has time, so invoices get paid as billed. In our sample invoice, 600 dollars out of 4,010 shouldn't be paid, which is about 15 percent. Multiply that by every vendor and every building."
+      "notes": "From the operator calls: nursing homes don't lack software, they have too much of it, and nothing pulls it together. Every process that touches more than one system depends on a person remembering to check, chase and follow up. That is where money leaks, where deadlines slip, and why the owner only finds out when it's already late. To show the idea, we built one workflow all the way through: the vendor invoice. In our sample invoice, 600 dollars out of 4,010 should not be paid.",
+      "footer": "We picked one high-value example to build end to end: the vendor invoice."
     },
     {
       "type": "cards",
