@@ -8,3 +8,5 @@ __pycache__/
 data/
 .pytest_cache/
 out/
+
+presentation/.venv/
