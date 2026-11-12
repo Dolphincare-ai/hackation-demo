@@ -28,9 +28,18 @@
       "kicker": "Who it's for",
       "title": "Built for the top, useful all the way down",
       "cards": [
-        {"head": "Owner / corporate (≈10 homes)", "body": "Portfolio dashboard: every building ranked worst-first, money at risk, what needs the owner."},
-        {"head": "Administrator (one building)", "body": "Building board: what's late, what's waiting on me, what's due in 24h."},
-        {"head": "BOM · DON · CFO", "body": "Get their task in the tool they already use: email, Teams, EHR alert. Nothing new to learn."}
+        {
+          "head": "Owner / corporate (≈10 homes)",
+          "body": "Portfolio dashboard: every building ranked worst-first, money at risk, what needs the owner."
+        },
+        {
+          "head": "Administrator (one building)",
+          "body": "Building board: what's late, what's waiting on me, what's due in 24h."
+        },
+        {
+          "head": "BOM · DON · CFO",
+          "body": "Get their task in the tool they already use: email, Teams, EHR alert. Nothing new to learn."
+        }
       ],
       "notes": "Our client is at the top, either an owner or a corporate with about ten homes. They get the portfolio view. The administrator gets one building. Staff below them keep working where they already work, and the platform just sends them the right task at the right time."
     },
@@ -40,10 +49,22 @@
       "kicker": "Our idea",
       "title": "An operating layer, not another app",
       "cards": [
-        {"head": "Every wait is a task", "body": "With an owner, a due time and an escalation ladder. Approvals, checks, funds, payments: one engine."},
-        {"head": "Never moves money", "body": "It creates a payment task for a person, then watches the bank feed to confirm."},
-        {"head": "A person approves", "body": "Checks are plain code. AI reads and writes text; it never decides pass or fail."},
-        {"head": "Everything audited", "body": "Every check, AI call, task, alert and approval is logged and reproducible."}
+        {
+          "head": "Every wait is a task",
+          "body": "With an owner, a due time and an escalation ladder. Approvals, checks, funds, payments: one engine."
+        },
+        {
+          "head": "Never moves money",
+          "body": "It creates a payment task for a person, then watches the bank feed to confirm."
+        },
+        {
+          "head": "A person approves",
+          "body": "Checks are plain code. AI reads and writes text; it never decides pass or fail."
+        },
+        {
+          "head": "Everything audited",
+          "body": "Every check, AI call, task, alert and approval is logged and reproducible."
+        }
       ],
       "notes": "Four principles. First, every wait becomes a task with a deadline and an escalation path, so nothing stalls silently. Second, we never touch money. A person pays, and we observe it. Third, a human approves, and the checks are deterministic code, not AI guesses. Fourth, everything is audited. That's what makes an owner comfortable letting a bot run."
     },
@@ -82,20 +103,6 @@
       "notes": "Follow presentation/demo_script.md. Keep it to four minutes. If anything breaks, go to the backup slides at the end."
     },
     {
-      "type": "arch",
-      "seconds": 45,
-      "kicker": "Architecture & data sources",
-      "title": "Read-only connectors → deterministic engine → people",
-      "columns": [
-        {"head": "Data sources (connectors)", "items": ["AP mailbox: mock or real Gmail IMAP (+ SMTP reply)", "Vendor master, contracts, deliveries", "EHR census (admit / discharge)", "Bank balance & transactions"]},
-        {"head": "Engine (Python / FastAPI)", "items": ["Bot loop ticks every 5 s", "Workflow state machine + task engine", "SLA scanner & escalation ladders", "Playbook (settings) + config.yaml", "SQLite platform state + audit log"]},
-        {"head": "AI slots (OpenAI GPT-4o)", "items": ["Classify email", "Extract invoice (schema-validated)", "Summarize packet", "Draft reply / dispute", "Chat agent: read & propose only"]},
-        {"head": "People (React + Tailwind)", "items": ["Portfolio dashboard (owner)", "Building board (administrator)", "Workflows: checks, packet, approval", "Tasks land in email / Teams / EHR"]}
-      ],
-      "footer": "Tools: Python 3.12 · FastAPI · SQLModel/SQLite · Pydantic · pytest · OpenAI SDK · AWS Secrets Manager · pypdf · React/Vite/Tailwind · built with Claude Code",
-      "notes": "Inputs come through connectors behind interfaces. Today they're mocks over plain files, except the mailbox, which can read a real Gmail inbox over IMAP and reply over SMTP. Swapping in PointClickCare or a real bank feed means writing one connector, with no change to the engine. The engine is plain Python: a bot loop, a state machine and a generic task engine with escalation. AI only fills five narrow slots. The UI is React."
-    },
-    {
       "type": "bullets",
       "seconds": 25,
       "kicker": "Trust",
@@ -112,15 +119,27 @@
       "type": "stats",
       "seconds": 25,
       "kicker": "Development time with AI",
-      "title": "Built in hours, not months",
+      "title": "Built in 10 hours, not months",
       "stats": [
-        {"value": "≈3 h", "label": "core build, 2 people, each pairing with Claude Code"},
-        {"value": "18", "label": "commits over the hackathon"},
-        {"value": "≈5,600", "label": "lines of Python + React"},
-        {"value": "82", "label": "automated tests"}
+        {
+          "value": "≈10 h",
+          "label": "core build, 2 people, each pairing with Claude Code"
+        },
+        {
+          "value": "18",
+          "label": "commits over the hackathon"
+        },
+        {
+          "value": "≈5,600",
+          "label": "lines of Python + React"
+        },
+        {
+          "value": "82",
+          "label": "automated tests"
+        }
       ],
       "footer": "Next scenario (resident fall): about a day. It's a new handler in workflows/registry.py, reusing the same task engine, ladders, audit and UI.",
-      "notes": "We split it into two lanes, engine and connectors/UI, wrote the contract first in CLAUDE.md, and each of us drove a Claude Code session. The core end to end took about three focused hours, and we added the chat agent and real email on top. Because the engine is generic, the next workflow is mostly configuration and a handler."
+      "notes": "We split it into two lanes, engine and connectors/UI, wrote the contract first in CLAUDE.md, and each of us drove a Claude Code session. The core end to end took about ten hours, and we added the chat agent and real email on top. Because the engine is generic, the next workflow is mostly configuration and a handler."
     },
     {
       "type": "bullets",
@@ -167,13 +186,43 @@
       "backup": true,
       "kicker": "Backup · seed invoice",
       "title": "Harbor Pharmacy #4471: $4,010 billed, $3,410 payable",
-      "header": ["Line", "Billed", "Planted issue", "Result"],
+      "header": [
+        "Line",
+        "Billed",
+        "Planted issue",
+        "Result"
+      ],
       "rows": [
-        ["Metformin 500 mg", "900 × 0.09 = $81", "matches", "verified"],
-        ["Lisinopril 10 mg", "700 × 0.11 = $77", "matches", "verified"],
-        ["Atorvastatin 40 mg", "600 × 0.84 = $504", "contract rate 0.52", "price failed, $192 at risk → pay at contract $312"],
-        ["Apixaban 5 mg (J. Alvarez)", "60 × 6.80 = $408", "resident discharged 10/21", "date failed, $408 → excluded"],
-        ["Enoxaparin 40 mg", "120 × 24.50 = $2,940", "no delivery record", "unverified → DON manual check"]
+        [
+          "Metformin 500 mg",
+          "900 × 0.09 = $81",
+          "matches",
+          "verified"
+        ],
+        [
+          "Lisinopril 10 mg",
+          "700 × 0.11 = $77",
+          "matches",
+          "verified"
+        ],
+        [
+          "Atorvastatin 40 mg",
+          "600 × 0.84 = $504",
+          "contract rate 0.52",
+          "price failed, $192 at risk → pay at contract $312"
+        ],
+        [
+          "Apixaban 5 mg (J. Alvarez)",
+          "60 × 6.80 = $408",
+          "resident discharged 10/21",
+          "date failed, $408 → excluded"
+        ],
+        [
+          "Enoxaparin 40 mg",
+          "120 × 24.50 = $2,940",
+          "no delivery record",
+          "unverified → DON manual check"
+        ]
       ],
       "footer": "Balance $12,000 − payable $3,410 ≥ reserve $5,000 → funds pass. Set balance to $6,000 → CFO gets a $2,410 shortfall task.",
       "notes": "Use if the live demo fails, or to answer 'what exactly was checked?'"
