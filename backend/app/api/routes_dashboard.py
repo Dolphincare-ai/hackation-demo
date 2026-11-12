@@ -89,6 +89,12 @@ def mock_tick():
     return run_tick()
 
 
+@router.post("/mock/inbox/check")
+def mock_inbox_check():
+    """The demo bar's 'Check inbox' button: read the mailbox now, whatever the poll schedule says."""
+    return run_tick(force_poll=True)
+
+
 @router.post("/mock/reset")
 def mock_reset():
     """Reset runs, tasks, the mock world and the clock. The live playbook (data/playbooks) is left alone."""
@@ -100,4 +106,7 @@ def mock_reset():
         build_mock_world(mock_world_dir())
         reset_db()
         clock.reset()
+        mb = get_connectors().mailbox
+        if hasattr(mb, "forget_seen"):  # real inbox: unread mail is picked up again after a reset
+            mb.forget_seen()
     return {"ok": True}

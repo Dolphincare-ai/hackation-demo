@@ -47,7 +47,10 @@ TOOLS = [
     _fn("list_tasks", "Open tasks, optionally for one role.", {"role": {"type": "string"}}),
     _fn("get_settings", "Every editable setting with its effective value and where it comes from.", {**_RUN, **_VENDOR}),
     _fn("explain_finding", "What a check compared and why it passed or failed.", {"finding_id": {"type": "integer"}}, ["finding_id"]),
-    _fn("check_inbox_now", "Read the AP inbox now and run the bot once."),
+    _fn("check_inbox_now", "Read the accounts-payable inbox right now and run the bot once, so any new unread invoice emails start a workflow. "
+        "Use it whenever the user's meaning is to look for or pick up new mail or invoices, however it is worded: "
+        "'any new invoices?', 'check the inbox', 'did Harbor send anything?', 'look for new mail', 'pull in the latest emails'. "
+        "Do not use it to answer questions about runs that already exist (use list_runs)."),
     _fn("propose_change", "Propose changing settings. Nothing changes until the user confirms. Keys: checks.<price|date|delivery|math|duplicate|bank_details>.enabled, "
         "task_defaults.<manual_entry|manual_check|approval|funds_check>.due_h, ladders.<kind>, manual_check_roles.<delivery|price|date>, "
         "inbox_poll.mode, inbox_poll.daily_at, approval_owner_threshold, reserve_min.",

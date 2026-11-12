@@ -37,6 +37,7 @@ Hackathon constraints: the whole thing is built in about 3 hours by two people, 
 - Frontend: React (Vite) and Tailwind. Plain fetch, no state library.
 - Scheduler: one asyncio background loop started in FastAPI lifespan, ticking every 5 seconds. `POST /mock/tick` runs the same tick on demand.
 - Config: `.env` (gitignored, see `.env.example`) holds `OPENAI_API_KEY` (AWS Secrets Manager `credentials/llm/openai`, key `api_key`), `MODEL` (default `gpt-4o`), `AI_MODE` (`live` or `cache`).
+- Mailbox env: `MAILBOX_MODE=mock|imap` (default `mock`). For `imap`: `IMAP_HOST` (e.g. `imap.gmail.com`), `IMAP_USER`, `IMAP_PASSWORD` (a Gmail app password, needs 2-step verification), `IMAP_BUILDING` (building the mailbox belongs to, e.g. `riverside`), optional `IMAP_PORT`, `IMAP_MARK_READ` (default `1`), `IMAP_MAX_AGE_DAYS` (default `30`). `REPLY_MODE=mock|smtp` (default `mock`; `smtp` also uses `SMTP_HOST`, `SMTP_PORT`, defaulting to the IMAP host with `imap` replaced by `smtp`, port 465). `RUN_LIVE_AI=1` enables the live-model phrase tests.
 
 ```
 make setup     # create venv, install backend and frontend deps
@@ -203,6 +204,8 @@ class BankConnector(Protocol):
 
 `get_connectors()` returns the mock implementations. `GET /connectors/health` reports each connector's mode (`mock`) and last read time. This is what makes the "real systems plug in here" story honest.
 
+**IMAP mailbox** (`connectors/mailbox_imap.py`, `MAILBOX_MODE=imap`): a dedicated test mailbox, never a work address, because the bot reads every unread message in it. `poll()` runs `SEARCH UNSEEN SINCE <today minus IMAP_MAX_AGE_DAYS>` (default 30 days, so older unread mail is never touched), fetches with `BODY.PEEK[]`, then marks each mail read with `STORE +FLAGS \Seen` once the bot has taken it (set `IMAP_MARK_READ=0` to leave mail unread and open INBOX read-only, handy for re-demos). Nothing is deleted or moved. It also dedupes by Message-ID in `data/imap_seen.db` (SQLite, separate from `platform.db` so it never contends with the bot's transaction) as a second guard, so a second tick returns nothing. `POST /mock/reset` clears it. PDF attachments become `attachments[].text` via pypdf; if every attachment has no text (a scan) the run goes to `MANUAL_ENTRY` without calling the AI. `thread_ref` is the first `References` id, else the `Message-ID`. The `to` address is `IMAP_USER`, mapped to a building by `IMAP_BUILDING`. Replies go to `mock_world/mailbox/sent` unless `REPLY_MODE=smtp`, which also sends over SMTP with `In-Reply-To` and `References` set. A connect or login failure raises `ConnectorError`; the bot writes one `inbox_error` audit row per distinct error and carries on. `GET /connectors/health` shows `mode: imap`, the reply mode and the mailbox. `POST /mock/inbox/check` forces a poll (the demo bar's "Check inbox"; TODO(B): add the button). `scripts/make_invoice.py [--variant changed_bank]` builds the test PDFs in `out/`.
+
 ### Mock world file formats
 
 ```
@@ -278,6 +281,7 @@ POST /mock/bank/post            {account_id, payee, amount, reference}
 POST /mock/bank/balance         {account_id, balance}
 POST /mock/advance              {hours}
 POST /mock/tick
+POST /mock/inbox/check          # tick with a forced mailbox poll
 POST /mock/reset
 ```
 
@@ -334,7 +338,7 @@ Table-driven tests for each check. State-machine tests: happy path, manual-check
 
 ## 16. Out of scope for now
 
-Real PDF parsing, real email, real bank or PointClickCare connections, authentication, multi-building rollups beyond the Portfolio board (synthetic data for the other buildings), the resident fall scenario (stub only), mobile layout, and anything that moves money.
+Real PDF parsing and real email beyond the one dedicated inbox (section 9), real bank or PointClickCare connections, authentication, multi-building rollups beyond the Portfolio board (synthetic data for the other buildings), the resident fall scenario (stub only), mobile layout, and anything that moves money.
 
 
 ## 17. Engine notes (Developer A)

@@ -9,7 +9,7 @@ import json
 
 from sqlmodel import Session
 
-from ...config import get_config
+from ...config import get_config, mailbox_buildings
 from ...connectors import get_connectors
 from ...core import audit, clock, permissions, tasks
 from ...models import Event, Finding, Invoice, InvoiceLine, Run, User
@@ -28,7 +28,7 @@ class InvoiceAuditHandler:
 
     # ---- 1. email in ----
     def on_email(self, session: Session, email: Email) -> bool:
-        building = get_config()["mailbox_buildings"].get(email.to)
+        building = mailbox_buildings().get(email.to)
         if building is None:
             return False
         kind, via = slots.classify_email(email)
@@ -65,7 +65,13 @@ class InvoiceAuditHandler:
     def _extract(self, session, run) -> bool:
         email = Email.model_validate(state.ctx(run)["email"])
         extract = None
+        # attachments with no readable text (a scanned PDF): do not let the AI guess, go to a person
+        unreadable = bool(email.attachments) and not any(a.text.strip() for a in email.attachments)
+        if unreadable:
+            audit.log(session, "system", "attachment_unreadable", run.id, {"files": [a.filename for a in email.attachments]})
         for attempt in (1, 2):
+            if unreadable:
+                break
             extract, via = slots.extract_invoice(email)
             _ai_audit(session, run.id, "extract_invoice", via, attempt=attempt, valid=extract is not None)
             if extract is not None:

@@ -14,6 +14,7 @@ from datetime import datetime, time
 from sqlmodel import Session, select
 
 from ..connectors import get_connectors
+from ..connectors.base import ConnectorError
 from ..models import KV, Run
 from ..workflows import registry
 from . import audit, clock, settings, sla
@@ -56,7 +57,15 @@ def poll_inbox(session: Session, force: bool = False) -> int:
     now = clock.now().isoformat()
     for h in due:
         _kv_set(session, f"last_inbox_poll:{h.run_type}", now)
-    emails = get_connectors().mailbox.poll()
+    try:
+        emails = get_connectors().mailbox.poll()
+    except ConnectorError as e:  # offline or bad login: log once per distinct error, never crash the tick
+        if _kv_get(session, "last_inbox_error") != str(e):
+            _kv_set(session, "last_inbox_error", str(e))
+            audit.log(session, "system", "inbox_error", None, {"error": str(e)})
+        return 0
+    if _kv_get(session, "last_inbox_error"):
+        _kv_set(session, "last_inbox_error", "")
     if emails or force:
         audit.log(session, "system", "inbox_checked", None, {"new_emails": len(emails), "forced": force})
     started = 0

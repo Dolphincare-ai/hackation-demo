@@ -22,6 +22,14 @@ def data_dir() -> Path:
     return db_path().parent
 
 
+def mailbox_buildings() -> dict:
+    """Mailbox address -> building. The real IMAP mailbox joins via IMAP_USER and IMAP_BUILDING."""
+    m = dict(get_config()["mailbox_buildings"])
+    if os.environ.get("IMAP_USER") and os.environ.get("IMAP_BUILDING"):
+        m[os.environ["IMAP_USER"]] = os.environ["IMAP_BUILDING"]
+    return m
+
+
 @lru_cache(maxsize=1)
 def get_config() -> dict:
     with open(Path(__file__).with_name("config.yaml"), encoding="utf-8") as f:

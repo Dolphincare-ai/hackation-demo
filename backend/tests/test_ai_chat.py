@@ -254,3 +254,24 @@ def test_text_slots(api):
     with pytest.raises(ai_client.AIError):
         ai_client.set_client(Stub(reply(""), reply("  ")))
         ai.draft_dispute([{"description": "x"}])
+
+
+# ---- live only: does the model pick check_inbox_now from the meaning of the request? ----
+INBOX_PHRASES = [
+    "any new invoices?", "check the inbox", "did Harbor send anything today?", "look for new mail please",
+    "pull in the latest emails", "has anything come into AP since this morning?",
+    "go see if there are unread invoices", "can you refresh the mailbox", "anything new from our vendors?",
+    "scan the accounts payable email for bills",
+]
+
+
+@pytest.mark.skipif(not __import__("os").environ.get("RUN_LIVE_AI"), reason="set RUN_LIVE_AI=1 to call the real model")
+@pytest.mark.parametrize("phrase", INBOX_PHRASES)
+def test_live_phrases_map_to_check_inbox_now(session, monkeypatch, phrase):
+    ai_client.set_client(None)  # real client
+    monkeypatch.setenv("AI_MODE", "live")
+    calls = []
+    real = chat_mod.bot.tick
+    monkeypatch.setattr(chat_mod.bot, "tick", lambda s, **k: calls.append(1) or real(s, **k))
+    chat_mod.chat(session, ADMIN, phrase, None)
+    assert calls, f"{phrase!r} did not trigger check_inbox_now"
