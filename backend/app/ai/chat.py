@@ -64,7 +64,8 @@ TOOLS = [
     _fn("propose_restore_defaults", "Propose restoring the factory default playbook."),
     _fn("propose_email", "Propose an email reply to the sender of a run's invoice, on the original thread. Nothing is sent until the user "
         "confirms with scope 'once'. The recipient and thread are fixed by the server; you only write the body.",
-        {"body": {"type": "string", "description": "Plain-text message, facts from tools only."}, "rationale": {"type": "string"}, **_RUN}, ["body"]),
+        {"body": {"type": "string", "description": "Plain-text message, facts from tools only."}, "rationale": {"type": "string"},
+         "invoice_no": {"type": "string", "description": "Invoice number such as 4480. Use this instead of run_id when the user names an invoice."}, **_RUN}, ["body"]),
     _fn("confirm_proposal", "Apply a proposal AFTER the user answered 'only this time' (once) or 'always'. Emails use 'once' (send).",
         {"proposal_id": {"type": "integer"}, "scope": {"type": "string", "enum": ["once", "always"]}}, ["proposal_id", "scope"]),
     _fn("cancel_proposal", "Drop a pending proposal.", {"proposal_id": {"type": "integer"}}, ["proposal_id"]),
@@ -330,9 +331,19 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
     if name == "propose_email":
         from ..schemas import Email
         from ..workflows.invoice_audit import state
+        from ..models import Invoice
+        inv_no = str(a.get("invoice_no") or "").lstrip("#").strip()
+        if inv_no:
+            inv = session.exec(select(Invoice).where(Invoice.invoice_no == inv_no).order_by(Invoice.id.desc())).first()
+            if inv is None:
+                raise ChatRefused(f"No invoice numbered {inv_no} was found")
+            run_id = inv.run_id
+        elif run_id and session.get(Run, run_id) is None:  # the model sometimes passes the invoice number as run_id
+            inv = session.exec(select(Invoice).where(Invoice.invoice_no == str(run_id)).order_by(Invoice.id.desc())).first()
+            run_id = inv.run_id if inv else run_id
         run = _run(session, run_id)
         if run is None:
-            raise ChatRefused("Which invoice? Give a run_id.")
+            raise ChatRefused("Which invoice? Give an invoice_no or run_id.")
         body = (a.get("body") or "").strip()
         if not body or len(body) > 2000:
             raise ChatRefused("An email body must be 1 to 2000 characters")
@@ -382,7 +393,8 @@ def _system(session, user: User, run_id) -> str:
 
 
 # ---------------------------------------------------------------- entry point
-def chat(session: Session, user_id: str, message: str, run_id: int | None = None) -> dict:
+def chat(session: Session, user_id: str, message: str, run_id: int | None = None, since_id: int | None = None) -> dict:
+    """since_id: id of the first message of this conversation; older messages are not sent to the model."""
     user = session.get(User, user_id)
     if user is None:
         raise permissions.Forbidden("Unknown user")
@@ -390,8 +402,9 @@ def chat(session: Session, user_id: str, message: str, run_id: int | None = None
     session.add(um)
     session.flush()
     ctx = {"user_id": user_id, "run_id": run_id, "msg_id": um.id}
-    hist = session.exec(select(ChatMessage).where(ChatMessage.user_id == user_id, ChatMessage.id < um.id)
-                        .order_by(ChatMessage.id.desc()).limit(HISTORY)).all()[::-1]
+    q = select(ChatMessage).where(ChatMessage.user_id == user_id, ChatMessage.id < um.id)
+    q = q.where(ChatMessage.id >= since_id) if since_id else q.where(ChatMessage.id >= um.id)  # no since_id: new conversation
+    hist = session.exec(q.order_by(ChatMessage.id.desc()).limit(HISTORY)).all()[::-1]
     messages = [{"role": "system", "content": _system(session, user, run_id)}]
     messages += [{"role": m.role, "content": m.content} for m in hist] + [{"role": "user", "content": message}]
 
@@ -425,7 +438,7 @@ def chat(session: Session, user_id: str, message: str, run_id: int | None = None
     audit.log(session, "claude", "ai_call", run_id, {"slot": "chat", "user": user_id})
     session.add(ChatMessage(user_id=user_id, run_id=run_id, role="assistant", content=reply, at=clock.now()))
     pending = session.exec(select(AgentProposal).where(AgentProposal.user_id == user_id, AgentProposal.status == "pending")).all()
-    return {"reply": reply, "proposals": [_proposal_out(p) for p in pending]}
+    return {"reply": reply, "proposals": [_proposal_out(p) for p in pending], "start_id": since_id or um.id}
 
 
 def history(session: Session, user_id: str, limit: int = 50) -> list[dict]:

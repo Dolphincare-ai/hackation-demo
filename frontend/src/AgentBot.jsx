@@ -5,27 +5,15 @@ import { api } from "./Workflows.jsx";
 
 export default function AgentBot({ userId, runId, onOpenWorkflow }) {
   const [open, setOpen] = useState(false);
-  const [thread, setThread] = useState(0); // 0 = general, otherwise a run id
-  const [runs, setRuns] = useState([]);
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [startId, setStartId] = useState(null); // id of the first message of this conversation
   const end = useRef(null);
 
-  // the Workflows tab selection opens that workflow's chat
-  useEffect(() => { if (runId) setThread(runId); }, [runId]);
-
-  useEffect(() => {
-    const load = () => api("/runs", {}, userId).then(setRuns).catch(() => {});
-    load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, [userId]);
-
-  useEffect(() => {
-    setMsgs([]);
-    api(`/agent/chat/history?user_id=${userId}&run_id=${thread}`, {}, userId).then(setMsgs).catch(() => {});
-  }, [userId, thread]);
+  function newChat() { setMsgs([]); setStartId(null); setText(""); }
+  function openChat() { newChat(); setOpen(true); } // every open is a fresh conversation
+  useEffect(() => { newChat(); }, [userId]);
 
   const stream = msgs.map((m, i) => ({ ...m, key: `m${m.id ?? "x" + i}` }));
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [stream.length, busy, open]);
@@ -36,7 +24,8 @@ export default function AgentBot({ userId, runId, onOpenWorkflow }) {
     setText(""); setBusy(true);
     setMsgs((m) => [...m, { role: "user", content: message, at: new Date().toISOString() }]);
     try {
-      const d = await api("/agent/chat", { method: "POST", body: JSON.stringify({ user_id: userId, message, run_id: thread || null }) }, userId);
+      const d = await api("/agent/chat", { method: "POST", body: JSON.stringify({ user_id: userId, message, since_id: startId }) }, userId);
+      if (d.start_id) setStartId(d.start_id);
       setMsgs((m) => [...m, { role: "assistant", content: d.reply, at: new Date().toISOString() }]);
     } catch (e) {
       setMsgs((m) => [...m, { role: "assistant", content: `Sorry: ${e.message}`, at: new Date().toISOString() }]);
@@ -46,7 +35,7 @@ export default function AgentBot({ userId, runId, onOpenWorkflow }) {
   return (
     <>
       {!open && (
-        <button onClick={() => setOpen(true)} aria-label="Open the agent chat"
+        <button onClick={openChat} aria-label="Open the agent chat"
           className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-sky-600 text-2xl shadow-lg hover:bg-sky-500">
           🤖
         </button>
@@ -54,12 +43,8 @@ export default function AgentBot({ userId, runId, onOpenWorkflow }) {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 flex h-[640px] w-[420px] flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
           <div className="flex items-center gap-2 border-b border-slate-700 bg-slate-800 px-3 py-2">
-            <select value={thread} onChange={(e) => setThread(Number(e.target.value))}
-              className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm">
-              <option value={0}>General (everything)</option>
-              {runs.map((r) => <option key={r.id} value={r.id}>{r.title} · {r.state.replace(/_/g, " ").toLowerCase()}</option>)}
-            </select>
-            <button onClick={() => setThread(0)} className="rounded bg-sky-700 px-2 py-1 text-xs hover:bg-sky-600">New chat</button>
+            <span className="min-w-0 flex-1 text-sm font-medium">Assistant</span>
+            <button onClick={newChat} className="rounded bg-sky-700 px-2 py-1 text-xs hover:bg-sky-600">New chat</button>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white" aria-label="Minimize">—</button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
@@ -76,7 +61,7 @@ export default function AgentBot({ userId, runId, onOpenWorkflow }) {
           </div>
           <div className="border-t border-slate-700 p-2">
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder={thread ? "Ask about this workflow" : "Try: check the inbox now"} disabled={busy}
+              placeholder="Try: check the inbox now" disabled={busy}
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none" />
           </div>
         </div>

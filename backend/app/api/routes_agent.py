@@ -14,13 +14,14 @@ class ChatBody(BaseModel):
     user_id: str | None = None
     message: str
     run_id: int | None = None
+    since_id: int | None = None
 
 
 @router.post("/agent/chat")
 def post_chat(body: ChatBody, session=Depends(session_dep), x_user_id=Depends(x_user)):
     user = acting_user(session, body.user_id, x_user_id)
     try:
-        out = chat_mod.chat(session, user.id if user else "", body.message.strip()[:2000], body.run_id)
+        out = chat_mod.chat(session, user.id if user else "", body.message.strip()[:2000], body.run_id, body.since_id)
         session.commit()
     except Exception:
         session.rollback()
