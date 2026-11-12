@@ -10,6 +10,7 @@ Confirm guards (all enforced in `_confirm`, never by the prompt):
 import copy
 import json
 import logging
+import os
 from datetime import timedelta
 
 from sqlmodel import Session, select
@@ -108,7 +109,7 @@ def _describe(p: AgentProposal) -> str:
         return "; ".join(f"{c['key']}: {_fmt(c.get('from'))} -> {_fmt(c['to'])}" for c in ch)
     if p.kind == "email":
         e = j(p.payload_json, {})
-        return f"send an email to {e.get('to')}, subject \"{e.get('subject')}\":\n{e.get('body')}"
+        return f"send an email about {e.get('run_title')} (run {p.run_id}) to {e.get('to')}, subject \"{e.get('subject')}\":\n{e.get('body')}"
     return {"note": "add a note: " + j(p.payload_json, {}).get("note", ""), "revert": "undo a playbook change",
             "restore": "restore the factory default playbook"}[p.kind]
 
@@ -333,14 +334,22 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
         from ..workflows.invoice_audit import state
         from ..models import Invoice
         inv_no = str(a.get("invoice_no") or "").lstrip("#").strip()
+        if not inv_no and run_id and session.get(Run, run_id) is None:  # the model sometimes passes the invoice number as run_id
+            inv_no = str(run_id)
         if inv_no:
-            inv = session.exec(select(Invoice).where(Invoice.invoice_no == inv_no).order_by(Invoice.id.desc())).first()
-            if inv is None:
+            invs = session.exec(select(Invoice).where(Invoice.invoice_no == inv_no).order_by(Invoice.id)).all()
+            if not invs:
                 raise ChatRefused(f"No invoice numbered {inv_no} was found")
-            run_id = inv.run_id
-        elif run_id and session.get(Run, run_id) is None:  # the model sometimes passes the invoice number as run_id
-            inv = session.exec(select(Invoice).where(Invoice.invoice_no == str(run_id)).order_by(Invoice.id.desc())).first()
-            run_id = inv.run_id if inv else run_id
+            if len(invs) > 1 and not a.get("run_id"):
+                opts = []
+                for i in invs:
+                    r = session.get(Run, i.run_id)
+                    sender = (state.ctx(r).get("email") or {}).get("from") if r else None
+                    opts.append({"run_id": i.run_id, "state": r.state if r else None, "sender": sender})
+                raise ChatRefused(f"Several runs have invoice {inv_no}. Pick the one the user means (by state, e.g. approved = AWAITING_PAYMENT, "
+                                  f"or ask them) and call again with run_id: {json.dumps(opts)}")
+            if len(invs) == 1:
+                run_id = invs[0].run_id
         run = _run(session, run_id)
         if run is None:
             raise ChatRefused("Which invoice? Give an invoice_no or run_id.")
@@ -352,7 +361,10 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
             raise ChatRefused("This run has no original email to reply to")
         em = Email.model_validate(raw)
         subject = em.subject if em.subject.lower().startswith("re:") else f"Re: {em.subject}"
-        return _new_proposal(session, ctx, "email", payload={"to": em.from_, "subject": subject, "body": body,
+        if os.environ.get("REPLY_MODE", "mock") == "smtp" and em.from_.lower().endswith(".example"):
+            raise ChatRefused(f"Run {run.id} came from a demo email ({em.from_}) that cannot receive mail. "
+                              "Pick a run whose email came from a real sender.")
+        return _new_proposal(session, ctx, "email", payload={"run_title": run.title, "to": em.from_, "subject": subject, "body": body,
                                                               "thread_ref": em.thread_ref},
                              rationale=a.get("rationale", ""), run_id=run.id)
     if name == "confirm_proposal":
