@@ -62,7 +62,10 @@ TOOLS = [
     _fn("propose_note", "Propose adding a note (a fact about a vendor or how to work) to the playbook prose.", {"note": {"type": "string"}}, ["note"]),
     _fn("propose_revert", "Propose undoing a playbook change. audit_id is a playbook_changed audit id, or 'last'.", {"audit_id": {"type": "string"}}),
     _fn("propose_restore_defaults", "Propose restoring the factory default playbook."),
-    _fn("confirm_proposal", "Apply a proposal AFTER the user answered 'only this time' (once) or 'always'.",
+    _fn("propose_email", "Propose an email reply to the sender of a run's invoice, on the original thread. Nothing is sent until the user "
+        "confirms with scope 'once'. The recipient and thread are fixed by the server; you only write the body.",
+        {"body": {"type": "string", "description": "Plain-text message, facts from tools only."}, "rationale": {"type": "string"}, **_RUN}, ["body"]),
+    _fn("confirm_proposal", "Apply a proposal AFTER the user answered 'only this time' (once) or 'always'. Emails use 'once' (send).",
         {"proposal_id": {"type": "integer"}, "scope": {"type": "string", "enum": ["once", "always"]}}, ["proposal_id", "scope"]),
     _fn("cancel_proposal", "Drop a pending proposal.", {"proposal_id": {"type": "integer"}}, ["proposal_id"]),
 ]
@@ -102,6 +105,9 @@ def _describe(p: AgentProposal) -> str:
     ch = j(p.changes_json, [])
     if p.kind == "change":
         return "; ".join(f"{c['key']}: {_fmt(c.get('from'))} -> {_fmt(c['to'])}" for c in ch)
+    if p.kind == "email":
+        e = j(p.payload_json, {})
+        return f"send an email to {e.get('to')}, subject \"{e.get('subject')}\":\n{e.get('body')}"
     return {"note": "add a note: " + j(p.payload_json, {}).get("note", ""), "revert": "undo a playbook change",
             "restore": "restore the factory default playbook"}[p.kind]
 
@@ -161,6 +167,11 @@ def _confirm(session: Session, ctx: dict, proposal_id: int, scope: str) -> dict:
         raise ChatRefused("The user has not answered yet. Ask them first.")
     user = session.get(User, ctx["user_id"])
     changes = j(p.changes_json, [])
+    if p.kind == "email":
+        if scope != "once":
+            raise ChatRefused("An email is sent once. Confirm with 'only this time' or cancel.")
+        permissions.require_change(user, "once", [])  # guard 4
+        return _send_email(session, p, user)
     if scope == "once" and (p.kind != "change" or p.run_id is None):
         raise ChatRefused("'Only this time' needs a setting change on a specific invoice. Use 'always' or cancel.")
     permissions.require_change(user, scope, [c["key"] for c in changes])  # guard 4
@@ -197,6 +208,29 @@ def _confirm(session: Session, ctx: dict, proposal_id: int, scope: str) -> dict:
     return {"applied": True, "scope": scope, "summary": _describe(p), "due_times_updated": moved}
 
 
+def _send_email(session: Session, p: AgentProposal, user: User) -> dict:
+    """Send a confirmed email proposal. Recipient and thread were fixed when it was proposed."""
+    from ..connectors import get_connectors
+    from ..connectors.base import ConnectorError
+    from ..models import Notification
+    from ..schemas import Outgoing
+    e = j(p.payload_json, {})
+    out = Outgoing(to=e["to"], subject=e["subject"], body=e["body"], thread_ref=e.get("thread_ref"))
+    try:
+        get_connectors().mailbox.send(out)
+    except ConnectorError as err:
+        audit.log(session, "system", "email_send_failed", p.run_id, {"proposal_id": p.id, "error": str(err)})
+        raise ChatRefused(f"The email could not be sent: {err}. The proposal is still pending, you can try again.") from err
+    session.add(Notification(run_id=p.run_id, channel="email", to=out.to, subject=out.subject, body=out.body,
+                             thread_ref=out.thread_ref, sent_at=clock.now()))
+    p.status, p.scope, p.decided_by, p.decided_at = "applied", "once", user.id, clock.now()
+    session.add(p)
+    audit.log(session, user.id, "email_sent", p.run_id, {"proposal_id": p.id, "to": out.to, "subject": out.subject,
+                                                         "thread_ref": out.thread_ref, "body": out.body})
+    audit.log(session, user.id, "proposal_applied", p.run_id, {"proposal_id": p.id, "scope": "once"})
+    return {"applied": True, "sent": True, "to": out.to, "subject": out.subject}
+
+
 def _cancel(session, ctx, proposal_id):
     p = session.get(AgentProposal, proposal_id)
     if p is None or p.user_id != ctx["user_id"] or p.status != "pending":
@@ -221,8 +255,18 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
         out["timeline"] = out["timeline"][-10:]
         return out
     if name == "list_tasks":
+        me = session.get(User, ctx["user_id"])
         q = select(Task).where(Task.status == "open").order_by(Task.due_at)
-        return [task_out(t) for t in session.exec(q) if not a.get("role") or t.role == a["role"]]
+        out = []
+        for t in session.exec(q):
+            if a.get("role") and t.role != a["role"]:
+                continue
+            run = session.get(Run, t.run_id) if t.run_id else None
+            d = task_out(t)
+            d.update(run_title=run.title if run else None, run_state=run.state if run else None,
+                     waiting_on_current_user=bool(me and (t.assignee_id == me.id or t.role == me.role)))
+            out.append(d)
+        return out
     if name == "get_settings":
         run = _run(session, run_id)
         return settings.snapshot(RUN_TYPE, run, a.get("vendor_id"))
@@ -283,6 +327,23 @@ def run_tool(session: Session, ctx: dict, name: str, a: dict):
         return _new_proposal(session, ctx, "revert", payload={"text": j(row.detail_json, {})["before"], "audit_id": row.id})
     if name == "propose_restore_defaults":
         return _new_proposal(session, ctx, "restore", payload={})
+    if name == "propose_email":
+        from ..schemas import Email
+        from ..workflows.invoice_audit import state
+        run = _run(session, run_id)
+        if run is None:
+            raise ChatRefused("Which invoice? Give a run_id.")
+        body = (a.get("body") or "").strip()
+        if not body or len(body) > 2000:
+            raise ChatRefused("An email body must be 1 to 2000 characters")
+        raw = state.ctx(run).get("email")
+        if not raw:
+            raise ChatRefused("This run has no original email to reply to")
+        em = Email.model_validate(raw)
+        subject = em.subject if em.subject.lower().startswith("re:") else f"Re: {em.subject}"
+        return _new_proposal(session, ctx, "email", payload={"to": em.from_, "subject": subject, "body": body,
+                                                              "thread_ref": em.thread_ref},
+                             rationale=a.get("rationale", ""), run_id=run.id)
     if name == "confirm_proposal":
         return _confirm(session, ctx, a["proposal_id"], a["scope"])
     if name == "cancel_proposal":
@@ -346,8 +407,13 @@ def chat(session: Session, user_id: str, message: str, run_id: int | None = None
                 for t in out["tool_calls"]]})
             for t in out["tool_calls"]:
                 try:
-                    with session.begin_nested():  # a refused tool must not leave half-written rows
-                        res = run_tool(session, ctx, t["name"], json.loads(t["arguments"] or "{}"))
+                    args = json.loads(t["arguments"] or "{}")
+                    if t["name"] == "check_inbox_now":
+                        # bot.tick commits, which would close a savepoint, so run it on the plain transaction
+                        res = run_tool(session, ctx, t["name"], args)
+                    else:
+                        with session.begin_nested():  # a refused tool must not leave half-written rows
+                            res = run_tool(session, ctx, t["name"], args)
                 except (ChatRefused, permissions.Forbidden, LookupError, KeyError, ValueError) as e:
                     res = {"error": str(e)}
                 messages.append({"role": "tool", "tool_call_id": t["id"], "content": json.dumps(res, default=str)})
